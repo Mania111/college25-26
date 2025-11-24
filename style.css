@@ -14,30 +14,35 @@ p {
 	color:#512e6c;
 }
 nav {	
-	width:20%; 
-	float:right; 
-	padding:1%; 
-	overflow:hidden; 
+	width: 20%; 
+	float: right; 
+	padding: 1%; 
+	margin: 0 0 0 10px;
+	overflow: hidden;
+	position: fixed;
+	right: 0px;
+	top: 5px;
+	background-color: #d17078;
 }
 nav ul li {
 	list-style-type:none; 
-	padding:0 0 0 10px;
+	padding:0 0 0 0px;
 	text-align: center;
 }
 footer { 
 	background:#512e6c;
 	color:#b34f6c;
 	text-align:center;
-	padding:10px;
-	clear: both;
-    position: relative;
-    height: 50px;
-    margin-top: -50px;
+	padding:2%;
+    position: fixed;
+	width: 100%;
+    bottom:0;
+	float:bottom;
 }
 header { 
 	height:100px;	
 	background: #b34f6c; 
-	margin: 0 0 10px 0; 
+	margin: 0 0 10px 10px; 
 }
 a {
 	text-decoration: none;
@@ -54,11 +59,12 @@ nav ul li a.active{
    background-color: #512e6c;
    color: #f3d065;
 }
-#content { 
+#content {
+	margin:10px;
 	width:75%; 
 	background: #f3d065; 
-	float:left; 
-	padding:1%; 
+	float:center; 
+	padding:1%;
 	overflow:hidden; 
 }
 #wrapper { 
@@ -71,7 +77,7 @@ nav ul li a.active{
 }
 /*RWD - responsive web design*/
 @media only screen and (max-width: 900px) {
-   nav {width:88%; position:absolute; height:30px;}
+   nav {width:88%; position:absolute; height:30px; padding-bottom:10px; margin-right:20px;}
    nav ul li {display: inline; }
 	nav ul li:after {content: " |";}
    #content {width: 98%;position:relative; top: 30px;margin-top:5%;}
