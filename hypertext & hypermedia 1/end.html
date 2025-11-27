@@ -5,30 +5,84 @@
     <title>My Hobby: End</title>
   </head>
   <body>
-    <div id="content">
+    <div class="content">
     <h1>End</h1>
-    <p>I sincerely hope my project has been pleasant to go through. If you have any question or queries, please fill your the contact form below.</p>
+    <p>I sincerely hope my website has been pleasant to go through. If you have any question or queries, please fill your the contact form below.</p>
     </div>
-    <div id="content">
-    <!-- will add CONTACT FORM here -->
+    <div class="content">
+    <h1><center>Contact Form</center></h1>
+      <form>
+        <label for="fname">Your name<span style="color: tomato">*</span>: </label>
+          <input type="text" id="fname" name="fname" required><br>
+        <label for="email">Enter your email address<span style="color: tomato">*</span>: </label>
+          <input type="email" id="email" name="email" required><br>
+        <label for="reason">Reason for contact (multiple-choice):</label><br>
+            <input type="checkbox" id="error" name="reason" value="error">
+            <label for="error">visual error on website</label><br>
+            <input type="checkbox" id="spell" name="reason" value="spelling">
+            <label for="spell">spelling error in text</label><br>
+            <input type="checkbox" id="other" name="reason" value="other">
+            <label for="other">other</label>
+            <label for="othertext">
+            <small><i>(please specify below)</i></small></label><br>
+        <select name="othertext" id="othertext">
+              <option value="">None</option>
+              <option value="different error or mistake on website">different error or mistake on website</option>
+              <option value="issue with links or resources">issue with links or resources</option>
+              <option value="images not loading">images not loading</option>
+              <option value="mobile version not working">broken site on mobile view</option>
+        </select><br>
+        <h3><center>Ignoring the issue specified above, please let me know how you'd rate your experience on my website.</center></h3>
+        <label for="scale">How do you rate the aesthetic aspect of the website?<span style="color: tomato">*</span> (on a scale 1-10):</label>
+        <input type="number" id="scale" name="scale" min="1" max="10" required><br>
+        <label for="scale2">How do you rate the usability of the website?<span style="color: tomato">*</span> (on a scale 1-10):</label>
+        <input type="number" id="scale2" name="scale2" min="1" max="10" required><br>
+        <label for="rate">Overall, how was your experience?<span style="color: tomato">*</span> (0-5)</label><br>
+            <label for="rate">Bad</label>
+            <input type="range" id="rate" name="rate" min="0" max="5">
+            <label for="rate">Good</label>
+        <br><br>
+            <button type="submit">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-send" viewBox="0 0 16 16">
+              <path d="M15.854.146a.5.5 0 0 1 .11.54l-5.819 14.547a.75.75 0 0 1-1.329.124l-3.178-4.995L.643 7.184a.75.75 0 0 1 .124-1.33L15.314.037a.5.5 0 0 1 .54.11ZM6.636 10.07l2.761 4.338L14.13 2.576zm6.787-8.201L1.591 6.602l4.339 2.76z"/>
+              </svg>
+            </button>
+            <button type="reset">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-clipboard2-x" viewBox="0 0 16 16">
+                <path d="M9.5 0a.5.5 0 0 1 .5.5.5.5 0 0 0 .5.5.5.5 0 0 1 .5.5V2a.5.5 0 0 1-.5.5h-5A.5.5 0 0 1 5 2v-.5a.5.5 0 0 1 .5-.5.5.5 0 0 0 .5-.5.5.5 0 0 1 .5-.5z"/>
+                <path d="M3 2.5a.5.5 0 0 1 .5-.5H4a.5.5 0 0 0 0-1h-.5A1.5 1.5 0 0 0 2 2.5v12A1.5 1.5 0 0 0 3.5 16h9a1.5 1.5 0 0 0 1.5-1.5v-12A1.5 1.5 0 0 0 12.5 1H12a.5.5 0 0 0 0 1h.5a.5.5 0 0 1 .5.5v12a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5z"/>
+                <path d="M8 8.293 6.854 7.146a.5.5 0 1 0-.708.708L7.293 9l-1.147 1.146a.5.5 0 0 0 .708.708L8 9.707l1.146 1.147a.5.5 0 0 0 .708-.708L8.707 9l1.147-1.146a.5.5 0 0 0-.708-.708z"/>
+              </svg>
+            </button>
+      </form>
+      <h3><center>Thank you for your time!</center></h3>
+      <p><center>An email responding to your form should appear in your inbox within a week.</center></p>
     </div>
     <div id="content">
     <p>Below is a list of all the websites and resources I had used during the creation process of this project.</p>
     <ul>
-      <li>thing one</li>
-      <li>thing two</li>
-      <li>thing three</li>
+      <li><a href="https://www.w3schools.com/">w3schools.com</a> - a great resource for learning html and css basics.</li>
+      <li><a href="https://stackoverflow.com/">stackoverflow.com</a> - website for asking and finding answers to any question programming. coding or web-development related.</li>
+      <li><a href="https://icons.getbootstrap.com/icons/">getbootstrap.com</a> -a site in which you can find plenty of svg icons and graphics to add onto your html. </li>
     </ul>
     </div>
+    <br><br><br><br><br><br>  
     <nav>
       <ul>
         <li><a href="introduction.html">Introduction</a></li>
-        <li><a href="content.html">Content</a></li>
-        <li><a class="active" href="end.html">Contact & References</a></li>
-      </ul> 
+        <li><a href="content.html">Content</a>
+          <ul>
+            <li><a href="content.html#art">Info</a></li>
+            <li><a href="content.html#galleryid">Gallery</a></li>
+          </ul>
+        </li>
+        <li><a class="active" href="end.html">Contact &amp; References</a></li>
+      </ul>
 	  </nav>
     <footer>
-      Marta Fryczke, s208184, Group 2A. All content included created by me unless specified otherwise.
+      <div id="scroll-container">
+        <div id="scroll-text">Marta Fryczke, s208184, Group 2A. All content included created by me unless specified otherwise. Resources credited on the "Resources" tab.<div>
+      </div>
     </footer>
   </body>
 </html>
