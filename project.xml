@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hobbyProject topic="art">
+    <author>
+        <name>Marta</name>
+        <surname>Fryczke</surname>
+        <student_id>s208184</student_id>
+        <group>2A</group>
+    </author>
+    <title>My Art Hobby Project</title>
+    <introduction>
+        <overview>
+            <paragraph id="p1">As everyone does, I too have hobbies and interest that I put my free time into. I would say my main hobby is art.</paragraph>
+            <paragraph id="p2">Art can mean different things to different people, but ultimately, anything creative or self-made can be art.</paragraph>
+        </overview>
+    </introduction>
+    <content>
+        <definition>
+            <description id="d1">Art is all around us and very subjective.</description>
+        </definition>
+        <personalArt>
+            <type name="digital drawing" primary="true">
+                <programs>
+                    <program name="Pencil2D" years="2017-2018" review="Very simple and easy to use, but lacks functions outside of essentials"/>
+                    <program name="FireAlpaca" years="2020-2025" review="Solid, reliable program with all necessities and free to install"/>
+                    <program name="IbisPaintX" years="2023-2025" review="Free, easy to use, only available for mobile devices"/>
+                    <program name="Procreate" years="2024-2025" review="Good brushes and clean UI, expensive and different from other programs"/>
+                </programs>
+            </type>
+            <community>
+                <onlineGroups>Engages in numerous online art communities</onlineGroups>
+                <collaboration>Collaborates with friends for art projects</collaboration>
+            </community>
+            <benefits>
+                <mentalHealth>Creative output is therapeutic and inspiring</mentalHealth>
+            </benefits>
+        </personalArt>
+        <aiArt>
+            <opinion author="self">AI cannot replace real artists; it lacks soul and emotions.</opinion>
+            <discussion>
+                <point>AI art makes art more accessible but lacks human creativity</point>
+                <point>Artists overcome disabilities to create beautiful works</point>
+            </discussion>
+        </aiArt>
+        <gallery>
+            <illustrations>
+                <image id="img1" file="media/illustration1.png" thumbnail="media/thumbnails/illustration1_thumbnail.png"/>
+                <image id="img2" file="media/illustration2.png" thumbnail="media/thumbnails/illustration2_thumbnail.png"/>
+                <image id="img3" file="media/illustration3.png" thumbnail="media/thumbnails/illustration3_thumbnail.png"/>
+                <image id="img4" file="media/illustration4.png" thumbnail="media/thumbnails/illustration4_thumbnail.png"/>
+            </illustrations>
+            <animated>
+                <image id="img5" file="media/animated1.gif" thumbnail="media/thumbnails/animated1_thumbnail.gif"/>
+                <image id="img6" file="media/animated2.gif" thumbnail="media/thumbnails/animated2_thumbnail.gif"/>
+                <image id="img7" file="media/animated3.gif" thumbnail="media/thumbnails/animated3_thumbnail.gif"/>
+                <image id="img8" file="media/animated4.gif" thumbnail="media/thumbnails/animated4_thumbnail.gif"/>
+            </animated>
+        </gallery>
+    </content>
+    <end>
+        <contactForm>
+            <field type="text" name="fname" required="true"/>
+            <field type="email" name="email" required="true"/>
+            <field type="checkbox" name="reason" options="visual error,spelling,other"/>
+            <field type="select" name="othertext" options="None,different error,issue with links,images not loading,mobile not working"/>
+            <field type="number" name="scale" min="1" max="10"/>
+            <field type="number" name="scale2" min="1" max="10"/>
+            <field type="range" name="rate" min="0" max="5"/>
+        </contactForm>
+
+        <resources>
+            <link url="https://www.w3schools.com/">W3Schools</link>
+            <link url="https://stackoverflow.com/">StackOverflow</link>
+            <link url="https://icons.getbootstrap.com/icons/">Bootstrap Icons</link>
+            <link url="https://enauczanie.pg.edu.pl/">eNauczanie</link>
+        </resources>
+    </end>
+</hobbyProject>
