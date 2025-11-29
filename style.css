@@ -1,0 +1,236 @@
+html, body {
+	font-family: Arial, Helvetica, sans-serif;
+	background-color: #fb8e4e;
+	color: #6e3b83;
+	margin: 0;
+	padding: 0;
+	width: 100%;
+}
+h1, h2 {
+	font-weight: bold;
+	color: #d17078;
+	text-align: center;
+	font-family: "Lucida Console", "Courier New", monospace;
+}
+h3 {
+	font-weight: bold;
+	color: #fb8e4e;
+	text-align: center;
+	font-family: "Lucida Console", "Courier New", monospace;
+}
+p {
+	color:#512e6c;
+	font-family: Arial, Helvetica, sans-serif;
+}
+nav {	
+	width: 20%; 
+	float: right; 
+	padding: 1%; 
+	margin: 0 0 0 10px;
+	overflow: hidden;
+	position: fixed;
+	right: 0px;
+	top: 5px;
+	background-color: #d17078;
+}
+nav ul li {
+	list-style-type:none; 
+	padding:0 0 0 0px;
+	text-align: center;
+	display: inline-block;
+}
+footer { 
+	background:#512e6c;
+	color:#b34f6c;
+	text-align:center;
+	padding:2%;
+    position: fixed;
+	width: 100%;
+    bottom:0;
+	float:left;
+}
+header { 
+	height:100px;	
+	background: #b34f6c; 
+	margin: 0 0 10px 10px; 
+}
+a {
+	text-decoration: none;
+}
+nav {
+    width: 20%;
+    float: right;
+    padding: 1%;
+    margin-left: 10px;
+    position: fixed;
+    top: 5px;
+    right: 0;
+    background-color: #d17078;
+}
+nav ul {
+    padding: 0;
+    margin: 0;
+}
+nav ul li {
+    list-style: none;
+    display: block;
+    margin: 10px 0;
+}
+nav ul li ul li {
+    margin: 5px 0 5px 20px;
+}
+nav ul > li:hover  {
+	background-color: #b34f6c;
+	transition: width 0.5s, height 0.5s, transform 0.5s;
+	transform: scale(105%);
+}
+nav ul > li:hover > a {
+	color: #512e6c;
+}
+nav ul li a.active{
+   background-color: #512e6c;
+   color: #f3d065;
+}
+.content {
+	margin:10px;
+	width:75%; 
+	background: #f3d065; 
+	float:left; 
+	padding:1%;
+	overflow:hidden; 
+}
+#wrapper { 
+	width:90%;
+	background-color: antiquewhite;
+	overflow:hidden;
+	margin:0 auto;
+	min-height:calc(100% - 52px); 
+	padding:1%; 
+}
+@media only screen and (max-width: 900px) {
+    nav {width:98%; position:absolute; height:auto; padding:10px 0; top:0; background-color: #d17078;}
+    nav ul li {display: inline; margin: 10px;}
+    nav ul li ul {display: inline; padding: 0; margin: 3px;}
+    nav ul li ul li {display: inline;}
+    nav ul li:after {content: " | ";}
+    nav ul > li:last-child:after {content: "";}
+    nav ul li ul li:after {content: "  ";}
+    nav ul li ul li:last-child:after {content: "";}
+    nav ul > li:hover {transform: none;}
+	#content {width: 98%; position:relative; top: 30px; margin-top:5%; margin-right:3%; margin-left:0;}
+	.navigationsidebar {display:none; }
+}
+.art {
+	float:left;
+}
+div.gallery {
+	display: inline-flex;
+	justify-content: center;
+	flex-wrap: wrap;
+	margin:10px;
+    overflow:hidden;
+}
+div.gallery-thumbnail {
+	margin: 5px;
+	width:auto;
+	filter:sepia(50%);
+	transform:scale(1);
+	transition:transform 0.1s ease-in-out;
+}
+div.gallery-thumbnail:hover {
+	transform:scale(1.1);
+    filter:sepia(0%);
+}
+div.gallery-image {
+	display: none;
+	position: fixed;
+	z-index: 999;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	padding: 1em;
+	background: rgba(81, 46, 108, 0.5);
+	backdrop-filter:blur(10px);
+	-webkit-backdrop-filter: blur(10px);
+	height:100%;
+	width:100%;
+	opacity:0;
+	transition:opacity 0.5s ease-in-out;
+}
+div.gallery-image:target {
+	display:block;
+	opacity: 1;
+}
+div.gallery-image span {
+	display: block;
+	width: 100%;
+	height: 100%;
+
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: contain;	
+}
+::selection {
+	color: #d3436c;
+	background: #fffa91;
+}
+table, th, td {
+	border: 2px solid #f3d065;
+	border-collapse: collapse;
+}
+th, td {
+	background-color: #e9b950;
+	border-radius: 5px;
+}
+th {
+	color: #fffa91;
+	background-color:#d17078
+}
+
+#scroll-container {
+	border: 5px solid #512e6c;
+	border-radius: 2px;
+	overflow: hidden;
+	width:90%
+}
+@keyframes animated-text {
+	from {
+		transform: translateX(100%);
+	}
+	to {
+		transform: translateX(-100%);
+	}
+}
+#scroll-text {
+	animation: animated-text 15s linear infinite;
+}
+
+.navigationsidebar {	
+	width: 20%; 
+	float: right; 
+	padding: 1%; 
+	margin: 0 0 0 10px;
+	overflow: hidden;
+	position: fixed;
+	right: 0px;
+	top: 180px;
+	background-color: #6e3b83;
+}
+.navigationsidebar ul > li:hover > a  {
+	background-color: #b34f6c;
+}
+.navigationsidebar ul > li:hover > a {
+	color: #f3d065;
+}
+.navigationsidebar ul li a.active {
+	background-color: #d17078;
+	color: #f3d065;
+}
+form {
+	text-align: center;
+}
+input[type=text], input[type=email], input[type=reason], select ,input[type=submit], input[type=reset], input[type=button], input[type=tumber], input[type="range"]{
+	background-color: #d17078;
+	color: #fffa91;
+}
