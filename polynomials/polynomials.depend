@@ -1,0 +1,55 @@
+# depslib dependency file v1.0
+1767826492 source:c:\users\marta\onedrive\documents\programming\pp_extra_project\board.cpp
+	"board.h"
+	"polynomial.h"
+	"config.h"
+	<iostream>
+
+1767825500 c:\users\marta\onedrive\documents\programming\pp_extra_project\polynomial.h
+	<string>
+
+1767826327 c:\users\marta\onedrive\documents\programming\pp_extra_project\config.h
+
+1767825881 source:c:\users\marta\onedrive\documents\programming\pp_extra_project\globals.cpp
+	"globals.h"
+
+1767823811 source:c:\users\marta\onedrive\documents\programming\pp_extra_project\input.cpp
+	"input.h"
+	<iostream>
+
+1767824532 c:\users\marta\onedrive\documents\programming\pp_extra_project\input.h
+	<string>
+
+1767824710 source:c:\users\marta\onedrive\documents\programming\pp_extra_project\main.cpp
+	<iostream>
+	"globals.h"
+	"polynomial.h"
+	"filemanager.h"
+	"input.h"
+	"config.h"
+	"board.h"
+
+1767824557 c:\users\marta\onedrive\documents\programming\pp_extra_project\globals.h
+	<string>
+
+1767821896 c:\users\marta\onedrive\documents\programming\pp_extra_project\filemanager.h
+	<string>
+
+1767825213 source:c:\users\marta\onedrive\documents\programming\pp_extra_project\filemanager.cpp
+	"filemanager.h"
+	"globals.h"
+	"polynomial.h"
+	"config.h"
+	<fstream>
+	<iostream>
+
+1767825898 source:c:\users\marta\onedrive\documents\programming\pp_extra_project\polynomial.cpp
+	"polynomial.h"
+	"globals.h"
+	"config.h"
+	"input.h"
+	<iostream>
+
+1767826218 c:\users\marta\onedrive\documents\programming\pp_extra_project\board.h
+	<windows.h>
+
