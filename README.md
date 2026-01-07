@@ -3,8 +3,12 @@ Assignments go to - main
 Projects and few-part-assignments have their own Branches
 
 Current list:
-1. H&H 2025 PROJECT - FINISHED
-2. Programming 2025 PROJECT - "Swallow Stars" - WIP
+1. H&H 2025 PROJECT - Hobby Website (HTML, CSS, XML, XSD, DTD) - add grade here
+2. H&H 2026 PROJECT 2 - Hobby Website cont. (XML, XSD, XSLT) - to be uploaded and graded
+3. Programming 2025 PROJECT - "Swallow Stars", cpp - ATTEMPT 1
+4. Programming 2025 PROJECT RETAKE + IMPROVEMENT PROPOSITION
 
 To Do:
-1. Organise the main repository, delete unnecessary duplicated files and clean it up overall.
+1. upload missing projects / files / previews
+2. add gradings and evaluation descriptors
+3. practice DTD, if given time
