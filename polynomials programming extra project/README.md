@@ -1,4 +1,5 @@
 Programming Basics project to make up for the failure of the first Project.
+best opened on Code::Blocks.
 
 PROPOSITION:
 PROBLEMS:
@@ -17,3 +18,5 @@ PROPOSAL:
                 - one module for saving, another one for loading
                 - module for analysis of properties of polynomial
         Plus detail descriptions of all code -> modules, functions, data structures etc.
+
+the zip folder in here is what i had sent to the teacher for grading.
