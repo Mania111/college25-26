@@ -1,0 +1,13 @@
+BoardSizeX=40
+BoardSizeY=20
+starsToCatch=2
+playerLifeForce=100
+starSpawnRate=0.25
+hunterSpawnRate=0.125
+minSpeed = 1;
+maxSpeed = 5;
+hunterMaxWidth=3
+hunterMaxHeight=3
+damageDecline=1
+declineStart=10
+timeLeft = 300

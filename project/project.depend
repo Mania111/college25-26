@@ -1,0 +1,11 @@
+# depslib dependency file v1.0
+1765148064 source:c:\users\marta\onedrive\documents\programming\project\main.cpp
+	<iostream>
+	<conio.h>
+	<cstdlib>
+	<vector>
+	<string>
+	<cstring>
+	<cstdio>
+	<windows.h>
+
