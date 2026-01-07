@@ -1,6 +1,5 @@
 A place for all things college related.
-Assignments go to - main
-Projects and few-part-assignments have their own Branches
+Everything goes to main and is seperated into their respective folders to fit my vision.
 
 Current list:
 1. H&H 2025 PROJECT - Hobby Website (HTML, CSS, XML, XSD, DTD) - add grade here
