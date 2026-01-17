@@ -222,9 +222,9 @@ int main(int argc, char **argv) {
 		double vx = 0.0, vy = 0.0;
 
 		if(keys[SDL_SCANCODE_LEFT] || keys[SDL_SCANCODE_A]) vx -= 1.0;
-		if(keys[SDL_SCANCODE_RIGHT] || keys[SDL_SCANCODE_D]) vx -= 1.0;
+		if(keys[SDL_SCANCODE_RIGHT] || keys[SDL_SCANCODE_D]) vx += 1.0;
 		if(keys[SDL_SCANCODE_UP] || keys[SDL_SCANCODE_W]) vy -= 1.0;
-		if(keys[SDL_SCANCODE_DOWN] || keys[SDL_SCANCODE_S]) vy -= 1.0;
+		if(keys[SDL_SCANCODE_DOWN] || keys[SDL_SCANCODE_S]) vy += 1.0;
 
 		// diagonal movement
 		double len = sqrt(vx*vx + vy*vy);
@@ -275,7 +275,7 @@ int main(int argc, char **argv) {
 		}
 
 		// floor
-		int floorSScreenY = FLOOR_Y - (int)cameraY;
+		int floorScreenY = FLOOR_Y - (int)cameraY;
 		DrawRectangle(screen, 0, floorScreenY, SCREEN_WIDTH, FLOOR_H, floorEdge, floorCol);
 
 		// player (eti.bmp is placeholder sprite)
