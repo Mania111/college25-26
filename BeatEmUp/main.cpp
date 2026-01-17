@@ -6,7 +6,6 @@
 #include"./SDL2-2.0.10/include/SDL.h"
 #include"./SDL2-2.0.10/include/SDL_main.h"
 
-
 #define SCREEN_WIDTH	640
 #define SCREEN_HEIGHT	480
 
@@ -74,11 +73,21 @@ void DrawRectangle(SDL_Surface *screen, int x, int y, int l, int k,
 	}
 
 
+void NewGame(double &stageTime, double &cameraX, double &cameraY, double &playerX, double &playerY){
+	stageTime = 0.0;
+	cameraX = 0.0;
+	cameraY = 0.0;
+	playerX = 200.0;
+	playerY = 350.0;
+}
+
 // main
 #ifdef __cplusplus
 extern "C"
 #endif
 int main(int argc, char **argv) {
+	int newGame = 1;
+	double gameStartTime = 0.0;
 	int t1, t2, quit, frames, rc;
 	double delta, worldTime, fpsTimer, fps, distance, etiSpeed;
 	SDL_Event event;
@@ -162,6 +171,8 @@ int main(int argc, char **argv) {
 
 	t1 = SDL_GetTicks();
 
+	double stageTime = 0.0;
+
 	frames = 0;
 	fpsTimer = 0;
 	fps = 0;
@@ -169,6 +180,27 @@ int main(int argc, char **argv) {
 	worldTime = 0;
 	distance = 0;
 	etiSpeed = 1;
+
+	const double STAGE_W = 2000.0;
+	const double STAGE_H = 480.0;
+
+	const int FLOOR_Y = 360;
+	const int FLOOR_H = 120;
+
+	double playerX = 200.0;
+	double playerY = FLOOR_Y - 20.0;
+
+	double playerSpeed = 260.0;
+
+	double cameraX = 0.0;
+	double cameraY = 0.0;
+	// camera dead-zone
+	const int DEAD_LEFT = 220;
+	const int DEAD_RIGHT = 420;
+	const int DEAD_TOP = 140;
+	const int DEAD_BOTTOM = 340;
+
+	NewGame(stageTime, cameraX, cameraY, playerX, playerY);
 
 	while(!quit) {
 		t2 = SDL_GetTicks();
@@ -179,15 +211,77 @@ int main(int argc, char **argv) {
 		delta = (t2 - t1) * 0.001;
 		t1 = t2;
 
-		worldTime += delta;
+		stageTime += delta;
 
 		distance += etiSpeed * delta;
 
 		SDL_FillRect(screen, NULL, czarny);
 
-		DrawSurface(screen, eti,
-		            SCREEN_WIDTH / 2 + sin(distance) * SCREEN_HEIGHT / 3,
-			    SCREEN_HEIGHT / 2 + cos(distance) * SCREEN_HEIGHT / 3);
+		const Uint8 *keys = SDL_GetKeyboardState(NULL);
+
+		double vx = 0.0, vy = 0.0;
+
+		if(keys[SDL_SCANCODE_LEFT] || keys[SDL_SCANCODE_A]) vx -= 1.0;
+		if(keys[SDL_SCANCODE_RIGHT] || keys[SDL_SCANCODE_D]) vx -= 1.0;
+		if(keys[SDL_SCANCODE_UP] || keys[SDL_SCANCODE_W]) vy -= 1.0;
+		if(keys[SDL_SCANCODE_DOWN] || keys[SDL_SCANCODE_S]) vy -= 1.0;
+
+		// diagonal movement
+		double len = sqrt(vx*vx + vy*vy);
+		if(len > 0.0) {
+			vx /= len;
+			vy /= len;
+		}
+
+		playerX += vx * playerSpeed * delta;
+		playerY += vy * playerSpeed * delta;
+
+		// clamp player to stage bounds
+		if (playerX < 0) playerX = 0;
+		if (playerX > STAGE_W) playerX = STAGE_W;
+
+		double minY = 40.0; // above the floor a bit
+		double maxY = FLOOR_Y - 10.0;
+		if (playerY < minY) playerY = minY;
+		if (playerY > maxY) playerY = maxY;
+
+		// camera following player
+		double playerScreenX = playerX - cameraX;
+		double playerScreenY = playerY - cameraY;
+
+		if (playerScreenX < DEAD_LEFT) cameraX = playerX - DEAD_LEFT;
+		if (playerScreenX > DEAD_RIGHT) cameraX = playerX - DEAD_RIGHT;
+		if (playerScreenY < DEAD_TOP) cameraY = playerY - DEAD_TOP;
+		if (playerScreenY > DEAD_BOTTOM) cameraY = playerY - DEAD_BOTTOM;
+
+		// clamp camera so it doesn't show outside of the stage
+		if (cameraX < 0) cameraX = 0;
+		if (cameraY < 0) cameraY = 0;
+		if (cameraX > STAGE_W - SCREEN_WIDTH) cameraX = STAGE_W - SCREEN_WIDTH;
+		if (cameraY > STAGE_H - SCREEN_HEIGHT) cameraY = STAGE_H - SCREEN_HEIGHT;
+
+		// background
+		int sky = SDL_MapRGB(screen->format, 30, 30, 60);
+		int bg2 = SDL_MapRGB(screen->format, 20, 20, 40);
+		int floorCol = SDL_MapRGB(screen->format, 60, 60, 60);
+		int floorEdge = SDL_MapRGB(screen->format, 120, 120, 120);
+
+		SDL_FillRect(screen, NULL, sky);
+
+		// background stripes
+		for (int i = 0; i < SCREEN_WIDTH; i += 80) {
+			int x = i - (int)(cameraX * 0.2) % 80;
+			DrawRectangle(screen, x, 60, 40, 80, bg2, bg2);
+		}
+
+		// floor
+		int floorSScreenY = FLOOR_Y - (int)cameraY;
+		DrawRectangle(screen, 0, floorScreenY, SCREEN_WIDTH, FLOOR_H, floorEdge, floorCol);
+
+		// player (eti.bmp is placeholder sprite)
+		int px = (int)(playerX - cameraX);
+		int py = (int)(playerY - cameraY);
+		DrawSurface(screen, eti, px, py);
 
 		fpsTimer += delta;
 		if(fpsTimer > 0.5) {
@@ -199,10 +293,10 @@ int main(int argc, char **argv) {
 		// info text
 		DrawRectangle(screen, 4, 4, SCREEN_WIDTH - 8, 36, czerwony, niebieski);
 		//            "template for the second project, elapsed time = %.1lf s  %.0lf frames / s"
-		sprintf(text, "Szablon drugiego zadania, czas trwania = %.1lf s  %.0lf klatek / s", worldTime, fps);
+		sprintf(text, "Beat 'em up Game | time = %.1lf s | fps =  %.0lf", stageTime, fps);
 		DrawString(screen, screen->w / 2 - strlen(text) * 8 / 2, 10, text, charset);
 		//	      "Esc - exit, \030 - faster, \031 - slower"
-		sprintf(text, "Esc - wyjscie, \030 - przyspieszenie, \031 - zwolnienie");
+		sprintf(text, "Esc - quit | N - new game");
 		DrawString(screen, screen->w / 2 - strlen(text) * 8 / 2, 26, text, charset);
 
 		SDL_UpdateTexture(scrtex, NULL, screen->pixels, screen->pitch);
@@ -215,8 +309,9 @@ int main(int argc, char **argv) {
 			switch(event.type) {
 				case SDL_KEYDOWN:
 					if(event.key.keysym.sym == SDLK_ESCAPE) quit = 1;
-					else if(event.key.keysym.sym == SDLK_UP) etiSpeed = 2.0;
-					else if(event.key.keysym.sym == SDLK_DOWN) etiSpeed = 0.3;
+					else if(event.key.keysym.sym == SDLK_n) {
+						NewGame(stageTime, cameraX, cameraY, playerX, playerY);
+					}
 					break;
 				case SDL_KEYUP:
 					etiSpeed = 1.0;
