@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
 	double delta, worldTime, fpsTimer, fps, distance, etiSpeed;
 	SDL_Event event;
 	SDL_Surface *screen, *charset;
-	SDL_Surface *eti;
+	SDL_Surface *playerSprite;
 	SDL_Texture *scrtex;
 	SDL_Window *window;
 	SDL_Renderer *renderer;
@@ -151,9 +151,9 @@ int main(int argc, char **argv) {
 		}
 	SDL_SetColorKey(charset, true, 0x000000);
 
-	eti = SDL_LoadBMP("./eti.bmp");
-	if(eti == NULL) {
-		printf("SDL_LoadBMP(eti.bmp) error: %s\n", SDL_GetError());
+	playerSprite = SDL_LoadBMP("./player_stand.bmp.bmp");
+	if(playerSprite == NULL) {
+		printf("SDL_LoadBMP(player_stand.bmp) error: %s\n", SDL_GetError());
 		SDL_FreeSurface(charset);
 		SDL_FreeSurface(screen);
 		SDL_DestroyTexture(scrtex);
@@ -162,6 +162,7 @@ int main(int argc, char **argv) {
 		SDL_Quit();
 		return 1;
 		}
+	SDL_SetColorKey(playerSprite, SDL_TRUE, SDL_MapRGB(playerSprite->format, 255, 0, 243));
 
 	char text[128];
 	int czarny = SDL_MapRGB(screen->format, 0x00, 0x00, 0x00);
@@ -233,17 +234,18 @@ int main(int argc, char **argv) {
 			vy /= len;
 		}
 
-		playerX += vx * playerSpeed * delta;
-		playerY += vy * playerSpeed * delta;
+		playerX += vx * playerSpeed * delta;
+		playerY += vy * playerSpeed * delta;
 
 		// clamp player to stage bounds
 		if (playerX < 0) playerX = 0;
 		if (playerX > STAGE_W) playerX = STAGE_W;
 
-		double minY = 40.0; // above the floor a bit
-		double maxY = FLOOR_Y - 10.0;
-		if (playerY < minY) playerY = minY;
-		if (playerY > maxY) playerY = maxY;
+		// floor lane
+		double laneTop = FLOOR_Y + 10.0;
+		double laneBottom = FLOOR_Y + FLOOR_H - 10.0;
+		if (playerY < laneTop) playerY = laneTop;
+		if (playerY > laneBottom) playerY = laneBottom;
 
 		// camera following player
 		double playerScreenX = playerX - cameraX;
@@ -251,6 +253,8 @@ int main(int argc, char **argv) {
 
 		if (playerScreenX < DEAD_LEFT) cameraX = playerX - DEAD_LEFT;
 		if (playerScreenX > DEAD_RIGHT) cameraX = playerX - DEAD_RIGHT;
+		// the lines below could be removed if i want to keep the camera at 0 at all times.
+		// if removed, add "cameraY = 0.0"
 		if (playerScreenY < DEAD_TOP) cameraY = playerY - DEAD_TOP;
 		if (playerScreenY > DEAD_BOTTOM) cameraY = playerY - DEAD_BOTTOM;
 
@@ -278,10 +282,18 @@ int main(int argc, char **argv) {
 		int floorScreenY = FLOOR_Y - (int)cameraY;
 		DrawRectangle(screen, 0, floorScreenY, SCREEN_WIDTH, FLOOR_H, floorEdge, floorCol);
 
+		// stage limit markers
+		int markerCol = SDL_MapRGB(screen->format, 200, 200, 0);
+
+		int startX = (int)(0-cameraX);
+		DrawRectangle(screen, startX, 80, 10, 260, markerCol, markerCol);
+		int endX = (int)(STAGE_W - cameraX);
+		DrawRectangle(screen, endX - 10, 80, 10, 260, markerCol, markerCol);
+
 		// player (eti.bmp is placeholder sprite)
 		int px = (int)(playerX - cameraX);
 		int py = (int)(playerY - cameraY);
-		DrawSurface(screen, eti, px, py);
+		DrawSurface(screen, playerSprite, px, py);
 
 		fpsTimer += delta;
 		if(fpsTimer > 0.5) {
@@ -325,6 +337,7 @@ int main(int argc, char **argv) {
 		}
 
 	// freeing all surfaces
+	SDL_FreeSurface(playerSprite);
 	SDL_FreeSurface(charset);
 	SDL_FreeSurface(screen);
 	SDL_DestroyTexture(scrtex);
