@@ -1,74 +1,16 @@
-// ---------- COMBO / INPUT BUFFER ----------
+// -------- combo input system --------
+InputBuffer inputBuf;
+inputBuf.count = 0;
 
-enum InputCmd {
-	CMD_NONE = 0,
-	CMD_X,      // jump button (X)
-	CMD_Z,      // light attack (Z)
-	CMD_Y,      // heavy attack (Y)
-	CMD_L,      // move left tap (A/Left)
-	CMD_R,      // move right tap (D/Right)
-	CMD_U,      // move up tap (W/Up)
-	CMD_D,      // move down tap (S/Down)
-};
+bool devMode = false;
+ComboAction currentComboAction = CA_NONE;
+double comboActionTimer = 0.0;
 
-const char* CmdName(InputCmd c) {
-	switch (c) {
-		case CMD_X: return "X";
-		case CMD_Z: return "Z";
-		case CMD_Y: return "Y";
-		case CMD_L: return "L";
-		case CMD_R: return "R";
-		case CMD_U: return "U";
-		case CMD_D: return "D";
-		default: return "_";
-	}
-}
+// dash tuning
+double dashSpeed = 1100.0;     // pixels/sec for the dash
+double dashDuration = 0.12;    // seconds
+double dashVX = 0.0, dashVY = 0.0;
 
-struct InputEvent {
-	InputCmd cmd;
-	double t; // seconds (stageTime)
-};
-
-struct InputBuffer {
-	static const int CAP = 16;
-	InputEvent e[CAP];
-	int count;
-};
-
-void BufPush(InputBuffer* b, InputCmd cmd, double now) {
-	// shift right, newest at index 0
-	if (b->count < InputBuffer::CAP) b->count++;
-	for (int i = b->count - 1; i > 0; --i) b->e[i] = b->e[i - 1];
-	b->e[0].cmd = cmd;
-	b->e[0].t = now;
-}
-
-// Checks if buffer starts with pattern p[0..n-1] within time window (max age)
-bool BufMatch(const InputBuffer* b, const InputCmd* p, int n, double now, double windowSec) {
-	if (b->count < n) return false;
-
-	for (int i = 0; i < n; i++) {
-		if (b->e[i].cmd != p[i]) return false;
-		if (now - b->e[i].t > windowSec) return false;
-	}
-	return true;
-}
-
-// ---------- ACTIONS (extendable) ----------
-enum ComboAction {
-	CA_NONE = 0,
-	CA_TRIPLE_JUMP,  // XXX
-	CA_FURY,         // YYY
-	CA_UPPERCUT,     // X Y X
-	CA_DASH,         // double-tap direction
-};
-
-const char* ActionName(ComboAction a) {
-	switch (a) {
-		case CA_TRIPLE_JUMP: return "TRIPLE_JUMP";
-		case CA_FURY: return "FURY";
-		case CA_UPPERCUT: return "UPPERCUT";
-		case CA_DASH: return "DASH";
-		default: return "NONE";
-	}
-}
+// buffer tuning
+const double INPUT_WINDOW = 0.55;     // max time between inputs for combos
+const double DOUBLE_TAP_WINDOW = 0.28;
