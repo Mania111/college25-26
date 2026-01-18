@@ -167,7 +167,8 @@ int main(int argc, char **argv) {
 		SDL_Quit();
 		return 1;
 		}
-	Uint32 key =SDL_MapRGB(sprStand->format, 255, 0, 243);
+
+	Uint32 key = SDL_MapRGB(sprStand->format, 255, 0, 243);
 	SDL_SetColorKey(sprStand, SDL_TRUE, key);
 	SDL_SetColorKey(sprWalk1, SDL_TRUE, key);
 	SDL_SetColorKey(sprWalk2, SDL_TRUE, key);
@@ -191,27 +192,13 @@ int main(int argc, char **argv) {
 	etiSpeed = 1;
 
 	const double STAGE_W = 2000.0;
-	const double STAGE_H = 480.0;
+	const double STAGE_H = 900.0;
 
 	const int FLOOR_Y = 260;
 	const int FLOOR_H = 200;
 
 	double playerX = 200.0;
-	double playerY = FLOOR_Y - 20.0;
-
-	// floor lane clamp
-	double halfH = currentSprite->h / 2.0;
-	double laneTop = FLOOR_Y + halfH;
-	double laneBottom = FLOOR_Y + FLOOR_H - halfH;
-
-	double screenTop = halfH;
-	double screenBottom = SCREEN_HEIGHT - halfH;
-
-	double minY = laneTop;
-	if (minY < screenTop) minY = screenBottom;
-
-	if (playerY < minY) playerY = minY;
-	if (playerY > maxY) playerY = maxY;
+	double playerY = FLOOR_Y + FLOOR_H / 2.0;
 
 	double playerSpeed = 260.0;
 
@@ -243,8 +230,6 @@ int main(int argc, char **argv) {
 
 		distance += etiSpeed * delta;
 
-		SDL_FillRect(screen, NULL, czarny);
-
 		const Uint8 *keys = SDL_GetKeyboardState(NULL);
 
 		double vx = 0.0, vy = 0.0;
@@ -266,7 +251,7 @@ int main(int argc, char **argv) {
 			animTimer += delta;
 			while (animTimer >= ANIM_STEP_TIME) {
 				animTimer -= ANIM_STEP_TIME;
-				animStep = (animStep + 1) % 5; // 5 step cycle
+				animStep = (animStep + 1) % 4; // 5 step cycle
 			}
 		} else {
 			animTimer = 0.0;
@@ -282,7 +267,6 @@ int main(int argc, char **argv) {
 			currentSprite = sprStand;
 		}
 
-
 		playerX += vx * playerSpeed * delta;
 		playerY += vy * playerSpeed * delta;
 
@@ -290,11 +274,27 @@ int main(int argc, char **argv) {
 		if (playerX < 0) playerX = 0;
 		if (playerX > STAGE_W) playerX = STAGE_W;
 
-		// floor lane
-		double laneTop = FLOOR_Y + 10.0;
-		double laneBottom = FLOOR_Y + FLOOR_H - 10.0;
-		if (playerY < laneTop) playerY = laneTop;
-		if (playerY > laneBottom) playerY = laneBottom;
+		// floor lane clamp
+		double footTop = FLOOR_Y + 15; // top of lane
+		double footBottom = FLOOR_Y + FLOOR_H - 5; // bottom of lane
+		if (playerY < footTop) playerY = footTop;
+		if (playerY > footBottom) playerY = footBottom;
+
+		double halfH = currentSprite->h / 2.0;
+		double laneTop = FLOOR_Y + halfH;
+		double laneBottom = FLOOR_Y + FLOOR_H - halfH;
+
+		double screenTop = halfH;
+		double screenBottom = SCREEN_HEIGHT - halfH;
+
+		double minY = laneTop;
+		if (minY < screenTop) minY = screenTop;
+
+		double maxY = laneBottom;
+		if (maxY > screenBottom) maxY = screenBottom;
+
+		if (playerY < footTop) playerY = footTop;
+		if (playerY > footBottom) playerY = footBottom;
 
 		// camera following player
 		double playerScreenX = playerX - cameraX;
@@ -302,16 +302,14 @@ int main(int argc, char **argv) {
 
 		if (playerScreenX < DEAD_LEFT) cameraX = playerX - DEAD_LEFT;
 		if (playerScreenX > DEAD_RIGHT) cameraX = playerX - DEAD_RIGHT;
-		// the lines below could be removed if i want to keep the camera at 0 at all times.
-		// if removed, add "cameraY = 0.0"
-		if (playerScreenY < DEAD_TOP) cameraY = playerY - DEAD_TOP;
-		if (playerScreenY > DEAD_BOTTOM) cameraY = playerY - DEAD_BOTTOM;
+		cameraY = 0.0;
 
 		// clamp camera so it doesn't show outside of the stage
 		if (cameraX < 0) cameraX = 0;
-		if (cameraY < 0) cameraY = 0;
+		double maxCamY = STAGE_H - SCREEN_HEIGHT;
+		if (maxCamY < 0) maxCamY = 0;
+		if (cameraY > maxCamY) cameraY = maxCamY;
 		if (cameraX > STAGE_W - SCREEN_WIDTH) cameraX = STAGE_W - SCREEN_WIDTH;
-		if (cameraY > STAGE_H - SCREEN_HEIGHT) cameraY = STAGE_H - SCREEN_HEIGHT;
 
 		// background
 		int sky = SDL_MapRGB(screen->format, 30, 30, 60);
@@ -341,7 +339,7 @@ int main(int argc, char **argv) {
 
 		// player (eti.bmp is placeholder sprite)
 		int px = (int)(playerX - cameraX);
-		int py = (int)(playerY - cameraY);
+		int py = (int)(playerY - cameraY) - currentSprite->h / 2;
 		DrawSurface(screen, currentSprite, px, py);
 
 		fpsTimer += delta;
