@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "./SDL2-2.0.10/include/SDL.h"
 #include "./SDL2-2.0.10/include/SDL_main.h"
@@ -213,7 +214,7 @@ int main(int argc, char **argv) {
 	double gravity = 2200.0;
 	double jumpVel = 950.0;
 
-	// action tuning (IMPORTANT: declare BEFORE using)
+	// action tuning
 	double lightAttackDuration = 0.18;
 	double heavyAttackDuration = 0.35;
 
@@ -241,6 +242,9 @@ int main(int argc, char **argv) {
 	Action action = ACT_NONE;
 	double actionTimer = 0.0;
 
+	// IMPORTANT FIX: prevent multi-hitting per single attack press
+	bool attackDidHit = false;
+
 	// score + combo
 	int score = 0;
 	int comboCount = 0;
@@ -260,32 +264,39 @@ int main(int argc, char **argv) {
 	GameObject objs[MAX_OBJ];
 	int objCount = 0;
 
-	// spawn helpers
+	// spawn helpers (FIX: bigger objects + more box HP)
 	auto AddBox = [&](double x, double feetY) {
 		if (objCount >= MAX_OBJ) return;
-		objs[objCount++] = {0, x, feetY, 70.0, 60.0, 3, true}; // type 0 = box, HP=3
+		objs[objCount++] = {0, x, feetY, 140.0, 120.0, 5, true}; // bigger, HP=5
 	};
 	auto AddSpikes = [&](double x, double feetY) {
 		if (objCount >= MAX_OBJ) return;
-		objs[objCount++] = {1, x, feetY, 70.0, 25.0, 0, true}; // type 1 = spikes
+		objs[objCount++] = {1, x, feetY, 140.0, 40.0, 0, true}; // bigger spikes
 	};
+
+	// allow objects anywhere within the floor lane
 	double objMinFeetY = FLOOR_Y + 30.0;
 	double objMaxFeetY = FLOOR_Y + FLOOR_H;
-
-	// spawn objects
-	objCount = 0;
 
 	double minX = 200.0;
 	double maxX = STAGE_W - 200.0;
 
-	AddBox(RandRange(minX, maxX), RandRange(objMinFeetY, objMaxFeetY));
-	AddBox(RandRange(minX, maxX), RandRange(objMinFeetY, objMaxFeetY));
-	AddSpikes(RandRange(minX, maxX), RandRange(objMinFeetY, objMaxFeetY));
-	AddSpikes(RandRange(minX, maxX), RandRange(objMinFeetY, objMaxFeetY));
+	// FIX: helper that (re)spawns rarer objects (used at start AND on N)
+	auto RespawnObjects = [&]() {
+		objCount = 0;
+
+		// rarer: spawn fewer and probabilistic
+		if (Rand01() < 0.60) AddBox(RandRange(minX, maxX), RandRange(objMinFeetY, objMaxFeetY));
+		if (Rand01() < 0.45) AddBox(RandRange(minX, maxX), RandRange(objMinFeetY, objMaxFeetY));
+		if (Rand01() < 0.55) AddSpikes(RandRange(minX, maxX), RandRange(objMinFeetY, objMaxFeetY));
+		if (Rand01() < 0.40) AddSpikes(RandRange(minX, maxX), RandRange(objMinFeetY, objMaxFeetY));
+	};
+
+	RespawnObjects();
 
 	// camera
 	double cameraX = 0.0;
-	double cameraY = 0.0; // currently unused in your game
+	double cameraY = 0.0; // unused in this version
 	const int DEAD_LEFT = 220;
 	const int DEAD_RIGHT = 420;
 
@@ -350,6 +361,7 @@ int main(int argc, char **argv) {
 			if (actionTimer <= 0.0) {
 				action = ACT_NONE;
 				actionTimer = 0.0;
+				attackDidHit = false; // safe reset (also reset at start)
 			}
 		}
 
@@ -436,19 +448,17 @@ int main(int argc, char **argv) {
 			attackBox.w = range;
 			attackBox.h = height;
 
-			// starts a bit in front of player feet point
 			double frontOffset = 40.0;
-
 			attackBox.x = playerX + frontOffset;
 			attackBox.y = playerY - height;
 		}
 
-		// ---- PLAYER HITBOX (for spikes) ----
-		// Make a small foot area around the player's FEET contact point
-		double playerFootW = 40.0;
-		double playerFootH = 20.0;
+		// ---- PLAYER FEET HITBOX (for spikes) ----
+		// FIX: make it more "feet" than body (narrower + thinner)
+		double playerFootW = 28.0;
+		double playerFootH = 12.0;
 		double pBoxX = playerX - playerFootW / 2.0;
-		double pBoxY = playerY - playerFootH; // just above feet
+		double pBoxY = playerY - playerFootH;
 		double pBoxW = playerFootW;
 		double pBoxH = playerFootH;
 
@@ -461,38 +471,33 @@ int main(int argc, char **argv) {
 			double oW    = objs[i].hitbox_w;
 			double oH    = objs[i].hitbox_h;
 
-			// box: can be hit by attacks
+			// box: can be hit by attacks (FIX: only once per attack press)
 			if (objs[i].type == 0) {
-				if (attackActive) {
+				if (attackActive && !attackDidHit) {
 					if (RectOverlap(attackBox.x, attackBox.y, attackBox.w, attackBox.h,
 					                oLeft, oTop, oW, oH)) {
-						// deal damage once per attack start? (simple version: per frame)
-						// We'll reduce HP only when actionTimer is near its start:
-						bool nearStart = false;
-						if (action == ACT_LIGHT && actionTimer > lightAttackDuration - 0.08) nearStart = true;
-						if (action == ACT_HEAVY && actionTimer > heavyAttackDuration - 0.10) nearStart = true;
 
-						if (nearStart) {
-							objs[i].boxHP -= (action == ACT_LIGHT) ? 1 : 2;
+						attackDidHit = true;
 
-							// scoring + combo
-							int base = (action == ACT_LIGHT) ? 10 : 15;
-							int multiplier = 1 + comboCount;  // 1,2,3,...
-							score += base * multiplier;
+						objs[i].boxHP -= (action == ACT_LIGHT) ? 1 : 2;
 
-							comboCount += 1;
-							comboTimer = COMBO_WINDOW;
+						// scoring + combo
+						int base = (action == ACT_LIGHT) ? 10 : 15;
+						int multiplier = 1 + comboCount;
+						score += base * multiplier;
 
-							if (objs[i].boxHP <= 0) {
-								objs[i].alive = false;
-								score += 50 * (1 + comboCount); // bonus for breaking box
-							}
+						comboCount += 1;
+						comboTimer = COMBO_WINDOW;
+
+						if (objs[i].boxHP <= 0) {
+							objs[i].alive = false;
+							score += 50 * (1 + comboCount);
 						}
 					}
 				}
 			}
 
-			// spikes: damage player when stepping on them
+			// spikes: damage player when stepping on them (feet hitbox)
 			if (objs[i].type == 1) {
 				if (RectOverlap(pBoxX, pBoxY, pBoxW, pBoxH, oLeft, oTop, oW, oH)) {
 					if (spikeCooldown <= 0.0) {
@@ -515,7 +520,6 @@ int main(int argc, char **argv) {
 
 		// ---- DRAW ----
 		int sky      = SDL_MapRGB(screen->format, 25, 25, 55);
-		int stripe   = SDL_MapRGB(screen->format, 150, 125, 65);
 		int floorCol = SDL_MapRGB(screen->format, 85, 95, 85);
 		int floorEdge= SDL_MapRGB(screen->format, 25, 25, 30);
 
@@ -525,7 +529,7 @@ int main(int argc, char **argv) {
 		int floorScreenY = FLOOR_Y - (int)cameraY;
 		DrawRectangle(screen, 0, floorScreenY, SCREEN_WIDTH, FLOOR_H, floorEdge, floorCol);
 
-		// draw objects (simple rectangles, can be replaced with sprites later)
+		// draw objects (simple rectangles)
 		int boxOut = SDL_MapRGB(screen->format, 200, 200, 200);
 		int boxIn  = SDL_MapRGB(screen->format, 90, 90, 90);
 		int spikeOut = SDL_MapRGB(screen->format, 255, 80, 80);
@@ -548,15 +552,6 @@ int main(int argc, char **argv) {
 				DrawRectangle(screen, left, top, w, h, spikeOut, spikeIn);
 			}
 		}
-
-		// optionally draw attack hitbox for debugging
-		// if (attackActive) {
-		// 	int hbOut = SDL_MapRGB(screen->format, 0, 255, 0);
-		// 	int hbIn  = SDL_MapRGB(screen->format, 0, 100, 0);
-		// 	int ax = (int)(attackBox.x - cameraX);
-		// 	int ay = (int)(attackBox.y - cameraY);
-		// 	DrawRectangle(screen, ax, ay, (int)attackBox.w, (int)attackBox.h, hbOut, hbIn);
-		// }
 
 		// player
 		int px = (int)(playerX - cameraX);
@@ -582,7 +577,7 @@ int main(int argc, char **argv) {
 		sprintf(text, "Esc quit | N new | X jump | Z light atk | Y heavy atk");
 		DrawString(screen, 10, 26, text, charset);
 
-		// ---- UI: HP bar (top-left, inside panel) ----
+		// ---- UI: HP bar (top-left) ----
 		int barX = 10;
 		int barY = 42;
 		int barW = 180;
@@ -625,18 +620,15 @@ int main(int argc, char **argv) {
 
 						// reset actions
 						action = ACT_NONE; actionTimer = 0.0;
+						attackDidHit = false;
 						inJump = false; z = 0.0; vz = 0.0;
 
 						// reset hurt
 						inHurt = false; hurtTimer = 0.0;
 						spikeCooldown = 0.0;
 
-						// respawn objects
-						objCount = 0;
-						AddBox(500,  FLOOR_Y + FLOOR_H);
-						AddSpikes(650, FLOOR_Y + FLOOR_H);
-						AddBox(800,  FLOOR_Y + FLOOR_H);
-						AddSpikes(1100, FLOOR_Y + FLOOR_H);
+						// FIX: respawn objects using the SAME random+rarer logic
+						RespawnObjects();
 					}
 
 					// actions (only once per key press)
@@ -655,6 +647,7 @@ int main(int argc, char **argv) {
 							if(action == ACT_NONE) {
 								action = ACT_LIGHT;
 								actionTimer = lightAttackDuration;
+								attackDidHit = false; // FIX: reset at start
 							}
 						}
 
@@ -663,6 +656,7 @@ int main(int argc, char **argv) {
 							if(action == ACT_NONE) {
 								action = ACT_HEAVY;
 								actionTimer = heavyAttackDuration;
+								attackDidHit = false; // FIX: reset at start
 							}
 						}
 					}
