@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
 	double delta, worldTime, fpsTimer, fps, distance, etiSpeed;
 	SDL_Event event;
 	SDL_Surface *screen, *charset;
-	SDL_Surface *playerSprite;
+	SDL_Surface *sprStand, *sprWalk1, *sprWalk2;
 	SDL_Texture *scrtex;
 	SDL_Window *window;
 	SDL_Renderer *renderer;
@@ -101,7 +101,6 @@ int main(int argc, char **argv) {
 	// the option:
 	// project -> szablon2 properties -> Linker -> System -> Subsystem
 	// must be changed to "Console"
-	printf("wyjscie printfa trafia do tego okienka\n");
 	printf("printf output goes here\n");
 
 	if(SDL_Init(SDL_INIT_EVERYTHING) != 0) {
@@ -151,9 +150,15 @@ int main(int argc, char **argv) {
 		}
 	SDL_SetColorKey(charset, true, 0x000000);
 
-	playerSprite = SDL_LoadBMP("./player_stand.bmp.bmp");
-	if(playerSprite == NULL) {
-		printf("SDL_LoadBMP(player_stand.bmp) error: %s\n", SDL_GetError());
+	sprStand = SDL_LoadBMP("./player_stand.bmp");
+	sprWalk1 = SDL_LoadBMP("./player_walk1.bmp");
+	sprWalk2 = SDL_LoadBMP("./player_walk2.bmp");
+
+	if(!sprStand || !sprWalk1 || !sprWalk2) {
+		printf("SDL_LoadBMP(player sprites) error: %s\n", SDL_GetError());
+		if (sprStand) SDL_FreeSurface(sprStand);
+		if (sprWalk1) SDL_FreeSurface(sprWalk1);
+		if (sprWalk2) SDL_FreeSurface(sprWalk2);
 		SDL_FreeSurface(charset);
 		SDL_FreeSurface(screen);
 		SDL_DestroyTexture(scrtex);
@@ -162,7 +167,10 @@ int main(int argc, char **argv) {
 		SDL_Quit();
 		return 1;
 		}
-	SDL_SetColorKey(playerSprite, SDL_TRUE, SDL_MapRGB(playerSprite->format, 255, 0, 243));
+	Uint32 key =SDL_MapRGB(sprStand->format, 255, 0, 243);
+	SDL_SetColorKey(sprStand, SDL_TRUE, key);
+	SDL_SetColorKey(sprWalk1, SDL_TRUE, key);
+	SDL_SetColorKey(sprWalk2, SDL_TRUE, key);
 
 	char text[128];
 	int czarny = SDL_MapRGB(screen->format, 0x00, 0x00, 0x00);
@@ -185,11 +193,25 @@ int main(int argc, char **argv) {
 	const double STAGE_W = 2000.0;
 	const double STAGE_H = 480.0;
 
-	const int FLOOR_Y = 360;
-	const int FLOOR_H = 120;
+	const int FLOOR_Y = 260;
+	const int FLOOR_H = 200;
 
 	double playerX = 200.0;
 	double playerY = FLOOR_Y - 20.0;
+
+	// floor lane clamp
+	double halfH = currentSprite->h / 2.0;
+	double laneTop = FLOOR_Y + halfH;
+	double laneBottom = FLOOR_Y + FLOOR_H - halfH;
+
+	double screenTop = halfH;
+	double screenBottom = SCREEN_HEIGHT - halfH;
+
+	double minY = laneTop;
+	if (minY < screenTop) minY = screenBottom;
+
+	if (playerY < minY) playerY = minY;
+	if (playerY > maxY) playerY = maxY;
 
 	double playerSpeed = 260.0;
 
@@ -202,6 +224,11 @@ int main(int argc, char **argv) {
 	const int DEAD_BOTTOM = 340;
 
 	NewGame(stageTime, cameraX, cameraY, playerX, playerY);
+
+	// animation
+	double animTimer = 0.0;
+	int animStep = 0;
+	const double ANIM_STEP_TIME = 0.12;
 
 	while(!quit) {
 		t2 = SDL_GetTicks();
@@ -233,6 +260,28 @@ int main(int argc, char **argv) {
 			vx /= len;
 			vy /= len;
 		}
+
+		bool moving = (len > 0.0);
+		if (moving) {
+			animTimer += delta;
+			while (animTimer >= ANIM_STEP_TIME) {
+				animTimer -= ANIM_STEP_TIME;
+				animStep = (animStep + 1) % 5; // 5 step cycle
+			}
+		} else {
+			animTimer = 0.0;
+			animStep = 0;
+		}
+
+		SDL_Surface* currentSprite = sprStand;
+		if (moving) {
+			if (animStep == 1) currentSprite = sprWalk1;
+			else if (animStep == 3) currentSprite = sprWalk2;
+			else currentSprite = sprStand;
+		} else {
+			currentSprite = sprStand;
+		}
+
 
 		playerX += vx * playerSpeed * delta;
 		playerY += vy * playerSpeed * delta;
@@ -293,7 +342,7 @@ int main(int argc, char **argv) {
 		// player (eti.bmp is placeholder sprite)
 		int px = (int)(playerX - cameraX);
 		int py = (int)(playerY - cameraY);
-		DrawSurface(screen, playerSprite, px, py);
+		DrawSurface(screen, currentSprite, px, py);
 
 		fpsTimer += delta;
 		if(fpsTimer > 0.5) {
@@ -337,7 +386,9 @@ int main(int argc, char **argv) {
 		}
 
 	// freeing all surfaces
-	SDL_FreeSurface(playerSprite);
+	SDL_FreeSurface(sprStand);
+	SDL_FreeSurface(sprWalk1);
+	SDL_FreeSurface(sprWalk2);
 	SDL_FreeSurface(charset);
 	SDL_FreeSurface(screen);
 	SDL_DestroyTexture(scrtex);
