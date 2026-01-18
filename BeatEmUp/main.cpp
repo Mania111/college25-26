@@ -80,8 +80,21 @@ void NewGame(double &stageTime, double &cameraX, double &cameraY, double &player
 	playerY = 350.0;
 }
 
-// placeholder rect type for attack hitbox (enemy will be added later)
+// rect type for attack hitbox
 struct RectD { double x, y, w, h; };
+
+struct GameObject {
+	int type; // type of enemy
+	double x, y; // position of FEET contact point
+	double hitbox_w, hitbox_h; // hitbox size
+	int boxHP;
+	bool alive;
+};
+
+bool RectOverlap(double ax, double ay, double aw, double ah, double bx, double by, double bw, double bh) {
+	return (ax < bx + bw) && (ax + aw > bx) && (ay < by + bh) && (ay + ah > by);
+}
+
 
 // main
 #ifdef __cplusplus
@@ -224,6 +237,31 @@ int main(int argc, char **argv) {
 	Action action = ACT_NONE;
 	double actionTimer = 0.0;
 
+	// scoring + combo
+	int score = 0;
+	int comboCount = 0;
+	double comboTimer = 0.0; // time left to keep combo alive
+	const double COMBO_WINDOW = 1.0; // seconds to chain hits
+
+	// player HP
+	int playerHP = 100;
+	int playerHPMax = 100;
+
+	// objects
+	const int MAX_OBJ = 10;
+	GameObject objs[MAX_OBJ];
+	int objCount = 0;
+
+	// helper lambda to spawn objects
+	auto AddBox = [&](double x, double feetY) {
+		if (objCount >= MAX_OBJ) return;
+		objs[objCount++] = {0, x, feetY, 70.0, 60.0, 3, true}; // type 0 = box
+	}
+	auto AddSpikes = [&](double x, double feetY) {
+		if (objCount >= MAX_OBJ) return;
+		objs[objCount++] = {1, x, feetY, 70.0, 25.0, 0, true}; // type 1 = box
+	}
+
 	// camera variables
 	double cameraX = 0.0;
 	double cameraY = 0.0;
@@ -231,6 +269,13 @@ int main(int argc, char **argv) {
 	const int DEAD_RIGHT = 420;
 
 	NewGame(stageTime, cameraX, cameraY, playerX, playerY);
+
+	// spawn objects on the floor lane (positions are changable)
+	objCount = 0;
+	AddBox(500, FLOOR_Y + FLOOR_H);
+	AddBox(800, FLOOR_Y + FLOOR_H);
+	AddSpikes(650, FLOOR_Y + FLOOR_H);
+	AddSpikes(1100, FLOOR_Y + FLOOR_H);
 
 	// walking animation
 	double animTimer = 0.0;
@@ -330,7 +375,7 @@ int main(int argc, char **argv) {
 			}
 		}
 
-		// attack hitbox placeholder (for later enemy)
+		// attack hitbox
 		RectD attackBox = {0,0,0,0};
 		bool attackActive = (action != ACT_NONE);
 		if (attackActive) {
@@ -339,9 +384,13 @@ int main(int argc, char **argv) {
 
 			attackBox.w = range;
 			attackBox.h = height;
-			attackBox.x = playerX + 60.0;   // later: use facing direction
+			attackBox.x = playerX + 60.0;
 			attackBox.y = playerY - height; // above feet
+
+			AddBox(500, FLOOR_Y _ FLOOR_H);
 		}
+
+
 
 		// background
 		int sky = SDL_MapRGB(screen->format, 25, 25, 55);
@@ -422,7 +471,6 @@ int main(int argc, char **argv) {
 					break;
 			}
 		}
-
 		frames++;
 	}
 
