@@ -1,8 +1,17 @@
-// If dashing: ignore normal movement and apply dash velocity
-if (currentComboAction == CA_DASH && comboActionTimer > 0.0) {
-	playerX += dashVX * dashSpeed * delta;
-	playerY += dashVY * dashSpeed * delta;
-} else {
-	playerX += vx * playerSpeed * speedScale * delta;
-	playerY += vy * playerSpeed * speedScale * delta;
+// Movement taps for dash detection (double tap)
+if (event.key.keysym.sym == SDLK_a || event.key.keysym.sym == SDLK_LEFT) {
+	BufPush(&inputBuf, CMD_L, stageTime);
+	TryStartComboAction(stageTime);
+}
+else if (event.key.keysym.sym == SDLK_d || event.key.keysym.sym == SDLK_RIGHT) {
+	BufPush(&inputBuf, CMD_R, stageTime);
+	TryStartComboAction(stageTime);
+}
+else if (event.key.keysym.sym == SDLK_w || event.key.keysym.sym == SDLK_UP) {
+	BufPush(&inputBuf, CMD_U, stageTime);
+	TryStartComboAction(stageTime);
+}
+else if (event.key.keysym.sym == SDLK_s || event.key.keysym.sym == SDLK_DOWN) {
+	BufPush(&inputBuf, CMD_D, stageTime);
+	TryStartComboAction(stageTime);
 }
