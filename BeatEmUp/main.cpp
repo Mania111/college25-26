@@ -325,7 +325,8 @@ int main(int argc, char **argv) {
 
 		// movement reduced during attack
 		double speedScale = 1.0;
-		if (action != ACT_NONE) speedScale = attackMoveScale;
+		if (action == ACT_LIGHT) speedScale = lightMoveScale;
+		if (action == ACT_HEAVY) speedScale = heavyMoveScale;
 
 		playerX += vx * playerSpeed * speedScale * delta;
 		playerY += vy * playerSpeed * speedScale * delta;
@@ -378,19 +379,28 @@ int main(int argc, char **argv) {
 		// attack hitbox
 		RectD attackBox = {0,0,0,0};
 		bool attackActive = (action != ACT_NONE);
+
 		if (attackActive) {
-			double range = 90.0;
-			double height = 80.0;
+			double range = (action == ACT_LIGHT) ? lightRange : heavyRange;
+			double height = (action == ACT_LIGHT) ? lightHeight : heavyHeight;
 
 			attackBox.w = range;
 			attackBox.h = height;
-			attackBox.x = playerX + 60.0;
-			attackBox.y = playerY - height; // above feet
 
-			AddBox(500, FLOOR_Y _ FLOOR_H);
+			double frontOffset = 40.0;
+
+			attackBox.x = playerX + frontOffset;
+			attackBox.y = playerY - height;
 		}
 
+		double lightRange = 90.0;
+		double lightHeight = 70.0;
 
+		double heavyRange = 140.0;
+		double heavyHeight = 90.0;
+
+		double lightMoveScale = 0.55;
+		double heavyMoveScale = 0.25;
 
 		// background
 		int sky = SDL_MapRGB(screen->format, 25, 25, 55);
