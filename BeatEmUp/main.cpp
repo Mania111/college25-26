@@ -158,4 +158,287 @@ int main(int argc, char **argv) {
 		printf("SDL_LoadBMP(player sprites) error: %s\n", SDL_GetError());
 		if (sprStand) SDL_FreeSurface(sprStand);
 		if (sprWalk1) SDL_FreeSurface(sprWalk1);
-		if
+		if (sprWalk2) SDL_FreeSurface(sprWalk2);
+		if (sprJump) SDL_FreeSurface(sprJump);
+		if (sprAttackHeavy) SDL_FreeSurface(sprAttackHeavy);
+		if (sprAttackLight) SDL_FreeSurface(sprAttackLight);
+		SDL_FreeSurface(charset);
+		SDL_FreeSurface(screen);
+		SDL_DestroyTexture(scrtex);
+		SDL_DestroyWindow(window);
+		SDL_DestroyRenderer(renderer);
+		SDL_Quit();
+		return 1;
+	}
+
+	// transparency key (pink)
+	Uint32 key = SDL_MapRGB(sprStand->format, 255, 0, 243);
+	SDL_SetColorKey(sprStand, SDL_TRUE, key);
+	SDL_SetColorKey(sprWalk1, SDL_TRUE, key);
+	SDL_SetColorKey(sprWalk2, SDL_TRUE, key);
+	SDL_SetColorKey(sprJump, SDL_TRUE, key);
+	SDL_SetColorKey(sprAttackHeavy, SDL_TRUE, key);
+	SDL_SetColorKey(sprAttackLight, SDL_TRUE, key);
+
+	char text[128];
+	int czerwony = SDL_MapRGB(screen->format, 0xFF, 0x00, 0x00);
+	int niebieski = SDL_MapRGB(screen->format, 0x11, 0x11, 0xCC);
+
+	t1 = SDL_GetTicks();
+
+	double stageTime = 0.0;
+
+	frames = 0;
+	fpsTimer = 0;
+	fps = 0;
+	quit = 0;
+	worldTime = 0;
+	distance = 0;
+	etiSpeed = 1;
+
+	const double STAGE_W = 2000.0;
+	const double STAGE_H = 900.0;
+
+	const int FLOOR_Y = 260;
+	const int FLOOR_H = 200;
+
+	// player variables
+	double playerX = 200.0;
+	double playerY = FLOOR_Y + FLOOR_H / 2.0;
+	double playerSpeed = 260.0;
+
+	// for action (easy to tune)
+	double gravity = 2200.0;
+	double jumpVel = 950.0; // bigger = higher jump
+	double lightAttackDuration = 0.18; // seconds (fast)
+	double heavyAttackDuration = 0.35; // seconds (slow)
+	double attackMoveScale = 0.35; // how much you can move during an attack
+
+	// jump state
+	bool inJump = false;
+	double z = 0.0;   // vertical offset (purely visual)
+	double vz = 0.0;  // vertical velocity
+
+	// attack state (light/heavy)
+	enum Action { ACT_NONE, ACT_LIGHT, ACT_HEAVY };
+	Action action = ACT_NONE;
+	double actionTimer = 0.0;
+
+	// camera variables
+	double cameraX = 0.0;
+	double cameraY = 0.0;
+	const int DEAD_LEFT = 220;
+	const int DEAD_RIGHT = 420;
+
+	NewGame(stageTime, cameraX, cameraY, playerX, playerY);
+
+	// walking animation
+	double animTimer = 0.0;
+	int animStep = 0;
+	const double ANIM_STEP_TIME = 0.12;
+
+	while(!quit) {
+		t2 = SDL_GetTicks();
+		delta = (t2 - t1) * 0.001;
+		t1 = t2;
+
+		stageTime += delta;
+
+		// --- jump physics update ---
+		if (inJump) {
+			vz -= gravity * delta;
+			z  += vz * delta;
+			if (z <= 0.0) {
+				z = 0.0;
+				vz = 0.0;
+				inJump = false;
+			}
+		}
+
+		// --- attack timer update ---
+		if (action != ACT_NONE) {
+			actionTimer -= delta;
+			if (actionTimer <= 0.0) {
+				action = ACT_NONE;
+				actionTimer = 0.0;
+			}
+		}
+
+		const Uint8 *keys = SDL_GetKeyboardState(NULL);
+
+		double vx = 0.0, vy = 0.0;
+		if(keys[SDL_SCANCODE_LEFT] || keys[SDL_SCANCODE_A]) vx -= 1.0;
+		if(keys[SDL_SCANCODE_RIGHT] || keys[SDL_SCANCODE_D]) vx += 1.0;
+		if(keys[SDL_SCANCODE_UP] || keys[SDL_SCANCODE_W]) vy -= 1.0;
+		if(keys[SDL_SCANCODE_DOWN] || keys[SDL_SCANCODE_S]) vy += 1.0;
+
+		// diagonal movement normalization
+		double len = sqrt(vx*vx + vy*vy);
+		if(len > 0.0) { vx /= len; vy /= len; }
+
+		bool moving = (len > 0.0);
+
+		// movement reduced during attack
+		double speedScale = 1.0;
+		if (action != ACT_NONE) speedScale = attackMoveScale;
+
+		playerX += vx * playerSpeed * speedScale * delta;
+		playerY += vy * playerSpeed * speedScale * delta;
+
+		// walking animation update (only if not attacking/jumping)
+		if (moving && action == ACT_NONE && !inJump) {
+			animTimer += delta;
+			while (animTimer >= ANIM_STEP_TIME) {
+				animTimer -= ANIM_STEP_TIME;
+				animStep = (animStep + 1) % 4;
+			}
+		} else {
+			animTimer = 0.0;
+			animStep = 0;
+		}
+
+		// clamp player to stage bounds (X)
+		if (playerX < 0) playerX = 0;
+		if (playerX > STAGE_W) playerX = STAGE_W;
+
+		// floor lane clamp (Y)
+		double footTop = FLOOR_Y + 30;
+		double footBottom = FLOOR_Y + FLOOR_H;
+		if (playerY < footTop) playerY = footTop;
+		if (playerY > footBottom) playerY = footBottom;
+
+		// camera follow (X only)
+		double playerScreenX = playerX - cameraX;
+		if (playerScreenX < DEAD_LEFT) cameraX = playerX - DEAD_LEFT;
+		if (playerScreenX > DEAD_RIGHT) cameraX = playerX - DEAD_RIGHT;
+		if (cameraX < 0) cameraX = 0;
+		if (cameraX > STAGE_W - SCREEN_WIDTH) cameraX = STAGE_W - SCREEN_WIDTH;
+
+		// choose current sprite (priority: attack > jump > walk > stand)
+		SDL_Surface* currentSprite = sprStand;
+
+		if (action == ACT_LIGHT) currentSprite = sprAttackLight;
+		else if (action == ACT_HEAVY) currentSprite = sprAttackHeavy;
+		else if (inJump) currentSprite = sprJump;
+		else {
+			if (moving) {
+				if (animStep == 1) currentSprite = sprWalk1;
+				else if (animStep == 3) currentSprite = sprWalk2;
+				else currentSprite = sprStand;
+			} else {
+				currentSprite = sprStand;
+			}
+		}
+
+		// attack hitbox placeholder (for later enemy)
+		RectD attackBox = {0,0,0,0};
+		bool attackActive = (action != ACT_NONE);
+		if (attackActive) {
+			double range = 90.0;
+			double height = 80.0;
+
+			attackBox.w = range;
+			attackBox.h = height;
+			attackBox.x = playerX + 60.0;   // later: use facing direction
+			attackBox.y = playerY - height; // above feet
+		}
+
+		// background
+		int sky = SDL_MapRGB(screen->format, 25, 25, 55);
+		int bg2 = SDL_MapRGB(screen->format, 150, 125, 65);
+		int floorCol = SDL_MapRGB(screen->format, 85, 95, 85);
+		int floorEdge = SDL_MapRGB(screen->format, 25, 25, 30);
+
+		SDL_FillRect(screen, NULL, sky);
+
+		// background stripes
+		for (int i = 0; i < SCREEN_WIDTH; i += 80) {
+			int x = i - (int)(cameraX * 0.2) % 80;
+			DrawRectangle(screen, x, 60, 40, 80, bg2, bg2);
+		}
+
+		// floor
+		int floorScreenY = FLOOR_Y - (int)cameraY;
+		DrawRectangle(screen, 0, floorScreenY, SCREEN_WIDTH, FLOOR_H, floorEdge, floorCol);
+
+		// player
+		int px = (int)(playerX - cameraX);
+		int py = (int)(playerY - cameraY - z) - currentSprite->h / 2;
+		DrawSurface(screen, currentSprite, px, py);
+
+		// fps
+		fpsTimer += delta;
+		if(fpsTimer > 0.5) {
+			fps = frames * 2;
+			frames = 0;
+			fpsTimer -= 0.5;
+		}
+
+		// info text
+		DrawRectangle(screen, 4, 4, SCREEN_WIDTH - 8, 36, czerwony, niebieski);
+		sprintf(text, "Beat 'em up Game | time = %.1lf s | fps =  %.0lf", stageTime, fps);
+		DrawString(screen, screen->w / 2 - strlen(text) * 8 / 2, 10, text, charset);
+		sprintf(text, "Esc quit | N new | X jump | Z light atk | Y heavy atk");
+		DrawString(screen, screen->w / 2 - strlen(text) * 8 / 2, 26, text, charset);
+
+		SDL_UpdateTexture(scrtex, NULL, screen->pixels, screen->pitch);
+		SDL_RenderCopy(renderer, scrtex, NULL, NULL);
+		SDL_RenderPresent(renderer);
+
+		// handling of events
+		while(SDL_PollEvent(&event)) {
+			switch(event.type) {
+				case SDL_KEYDOWN:
+					if(event.key.keysym.sym == SDLK_ESCAPE) quit = 1;
+					else if(event.key.keysym.sym == SDLK_n) {
+						NewGame(stageTime, cameraX, cameraY, playerX, playerY);
+						// reset jump + attacks
+						action = ACT_NONE; actionTimer = 0.0;
+						inJump = false; z = 0.0; vz = 0.0;
+					}
+					else if(event.key.repeat == 0) {
+						if(event.key.keysym.sym == SDLK_x) {
+							if(!inJump) {
+								inJump = true;
+								vz = jumpVel;
+							}
+						}
+						else if(event.key.keysym.sym == SDLK_z) {
+							if(action == ACT_NONE) {
+								action = ACT_LIGHT;
+								actionTimer = lightAttackDuration;
+							}
+						}
+						else if(event.key.keysym.sym == SDLK_y) {
+							if(action == ACT_NONE) {
+								action = ACT_HEAVY;
+								actionTimer = heavyAttackDuration;
+							}
+						}
+					}
+					break;
+				case SDL_QUIT:
+					quit = 1;
+					break;
+			}
+		}
+
+		frames++;
+	}
+
+	// freeing all surfaces
+	SDL_FreeSurface(sprStand);
+	SDL_FreeSurface(sprWalk1);
+	SDL_FreeSurface(sprWalk2);
+	SDL_FreeSurface(sprJump);
+	SDL_FreeSurface(sprAttackHeavy);
+	SDL_FreeSurface(sprAttackLight);
+	SDL_FreeSurface(charset);
+	SDL_FreeSurface(screen);
+	SDL_DestroyTexture(scrtex);
+	SDL_DestroyRenderer(renderer);
+	SDL_DestroyWindow(window);
+
+	SDL_Quit();
+	return 0;
+}
