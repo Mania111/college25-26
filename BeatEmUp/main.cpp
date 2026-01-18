@@ -96,6 +96,81 @@ bool RectOverlap(double ax, double ay, double aw, double ah,
 	return (ax < bx + bw) && (ax + aw > bx) && (ay < by + bh) && (ay + ah > by);
 }
 
+// ---------- COMBO / INPUT BUFFER ----------
+
+enum InputCmd {
+	CMD_NONE = 0,
+	CMD_X,	// jump button (X)
+	CMD_Z,	// light attack (Z)
+	CMD_Y,	// heavy attack (Y)
+	CMD_L,	// move left tap (A/Left)
+	CMD_R,	// move right tap (D/Right)
+	CMD_U,	// move up tap (W/Up)
+	CMD_D,	// move down tap (S/Down)
+};
+
+const char* CmdName(InputCmd c) {
+	switch (c) {
+		case CMD_X: return "X";
+		case CMD_Z: return "Z";
+		case CMD_Y: return "Y";
+		case CMD_L: return "L";
+		case CMD_R: return "R";
+		case CMD_U: return "U";
+		case CMD_D: return "D";
+		default: return "_";
+	}
+}
+
+struct InputEvent {
+	InputCmd cmd;
+	double t; // seconds (stageTime)
+};
+
+struct InputBuffer {
+	static const int CAP = 16;
+	InputEvent e[CAP];
+	int count;
+};
+
+void BufPush(InputBuffer* b, InputCmd cmd, double now) {
+	// shift right, newest at index 0
+	if (b->count < InputBuffer::CAP) b->count++;
+	for (int i = b->count - 1; i > 0; --i) b->e[i] = b->e[i - 1];
+	b->e[0].cmd = cmd;
+	b->e[0].t = now;
+}
+
+// Checks if buffer starts with pattern p[0..n-1] within time window (max age)
+bool BufMatch(const InputBuffer* b, const InputCmd* p, int n, double now, double windowSec) {
+	if (b->count < n) return false;
+
+	for (int i = 0; i < n; i++) {
+		if (b->e[i].cmd != p[i]) return false;
+		if (now - b->e[i].t > windowSec) return false;
+	}
+	return true;
+}
+
+// ---------- ACTIONS (extendable) ----------
+enum ComboAction {
+	CA_NONE = 0,
+	CA_TRIPLE_JUMP,	// XXX
+	CA_FURY,	// YYY
+	CA_UPPERCUT,	// X Y X
+	CA_DASH,	// double-tap direction
+};
+
+const char* ActionName(ComboAction a) {
+	switch (a) {
+		case CA_TRIPLE_JUMP: return "TRIPLE_JUMP";
+		case CA_FURY: return "FURY";
+		case CA_UPPERCUT: return "UPPERCUT";
+		case CA_DASH: return "DASH";
+		default: return "NONE";
+	}
+}
+
 double Rand01() {
 	return rand() / (double)RAND_MAX;
 }
@@ -113,7 +188,7 @@ int main(int argc, char **argv) {
 	// player sprites
 	SDL_Surface *sprStand, *sprWalk1, *sprWalk2;
 	SDL_Surface *sprJump, *sprAttackHeavy, *sprAttackLight;
-	SDL_Surface *sprHurt; // OW sprite
+	SDL_Surface *sprHurt;
 
 	SDL_Texture *scrtex;
 	SDL_Window *window;
@@ -221,7 +296,7 @@ int main(int argc, char **argv) {
 	double lightAttackDuration = 0.18;
 	double heavyAttackDuration = 0.35;
 
-	// MAKE HITBOXES BIGGER (per your request)
+	// hitboxes
 	double lightRange = 160.0;
 	double lightHeight = 120.0;
 
@@ -246,8 +321,25 @@ int main(int argc, char **argv) {
 	Action action = ACT_NONE;
 	double actionTimer = 0.0;
 
-	// FIX: unique id per attack press
+	// unique id per attack press
 	int attackId = 0;
+
+	// -------- combo input system --------
+	InputBuffer inputBuf;
+	inputBuf.count = 0;
+
+	bool devMode = false;
+	ComboAction currentComboAction = CA_NONE;
+	double comboActionTimer = 0.0;
+
+	// dash tuning
+	double dashSpeed = 1100.0;     // pixels/sec for the dash
+	double dashDuration = 0.12;    // seconds
+	double dashVX = 0.0, dashVY = 0.0;
+
+	// buffer tuning
+	const double INPUT_WINDOW = 0.55;     // max time between inputs for combos
+	const double DOUBLE_TAP_WINDOW = 0.28;
 
 	// score + combo
 	int score = 0;
@@ -330,6 +422,85 @@ int main(int argc, char **argv) {
 	frames = 0;
 	quit = 0;
 
+	// combo-action timer
+	if (comboActionTimer > 0.0) {
+		comboActionTimer -= delta;
+		if (comboActionTimer <= 0.0) {
+			comboActionTimer = 0.0;
+			currectComboAction = CA_NONE;
+			dashVX = dashVY = 0.0;
+		}
+	}
+
+	auto TryStartComboAction = [&](double now) -> void {
+		// Don't start a new combo action if one is already active
+		if (comboActionTimer > 0.0) return;
+
+		// 1) XXX => triple jump
+		{
+			InputCmd p[] = { CMD_X, CMD_X, CMD_X };
+			if (BufMatch(&inputBuf, p, 3, now, INPUT_WINDOW)) {
+				currentComboAction = CA_TRIPLE_JUMP;
+				comboActionTimer = 0.30;
+				return;
+			}
+		}
+
+		// 2) YYY => fury
+		{
+			InputCmd p[] = { CMD_Y, CMD_Y, CMD_Y };
+			if (BufMatch(&inputBuf, p, 3, now, INPUT_WINDOW)) {
+				currentComboAction = CA_FURY;
+				comboActionTimer = 0.45;
+				return;
+			}
+		}
+
+		// 3) X Y X => uppercut
+		{
+			InputCmd p[] = { CMD_X, CMD_Y, CMD_X };
+			if (BufMatch(&inputBuf, p, 3, now, INPUT_WINDOW)) {
+				currentComboAction = CA_UPPERCUT;
+				comboActionTimer = 0.35;
+				return;
+			}
+		}
+
+		// 4) Dash: double-tap direction (R R, L L, U U, D D)
+		{
+			// match newest first, so "R then R" is {CMD_R, CMD_R}
+			InputCmd pR[] = { CMD_R, CMD_R };
+			InputCmd pL[] = { CMD_L, CMD_L };
+			InputCmd pU[] = { CMD_U, CMD_U };
+			InputCmd pD[] = { CMD_D, CMD_D };
+
+			if (BufMatch(&inputBuf, pR, 2, now, DOUBLE_TAP_WINDOW)) {
+				currentComboAction = CA_DASH;
+				comboActionTimer = dashDuration;
+				dashVX = +1.0; dashVY = 0.0;
+				return;
+			}
+			if (BufMatch(&inputBuf, pL, 2, now, DOUBLE_TAP_WINDOW)) {
+				currentComboAction = CA_DASH;
+				comboActionTimer = dashDuration;
+				dashVX = -1.0; dashVY = 0.0;
+				return;
+			}
+			if (BufMatch(&inputBuf, pU, 2, now, DOUBLE_TAP_WINDOW)) {
+				currentComboAction = CA_DASH;
+				comboActionTimer = dashDuration;
+				dashVX = 0.0; dashVY = -1.0;
+				return;
+			}
+			if (BufMatch(&inputBuf, pD, 2, now, DOUBLE_TAP_WINDOW)) {
+				currentComboAction = CA_DASH;
+				comboActionTimer = dashDuration;
+				dashVX = 0.0; dashVY = +1.0;
+				return;
+			}
+		}
+	};
+
 	while(!quit) {
 		t2 = SDL_GetTicks();
 		delta = (t2 - t1) * 0.001;
@@ -401,8 +572,14 @@ int main(int argc, char **argv) {
 		if (action == ACT_HEAVY) speedScale = heavyMoveScale;
 		if (inHurt) speedScale = 0.0;
 
-		playerX += vx * playerSpeed * speedScale * delta;
-		playerY += vy * playerSpeed * speedScale * delta;
+		// If dashing: ignore normal movement and apply dash velocity
+		if (currentComboAction == CA_DASH && comboActionTimer > 0.0) {
+			playerX += dashVX * dashSpeed * delta;
+			playerY += dashVY * dashSpeed * delta;
+		} else {
+			playerX += vx * playerSpeed * speedScale * delta;
+			playerY += vy * playerSpeed * speedScale * delta;
+		}
 
 		// walking animation
 		if (moving && action == ACT_NONE && !inJump && !inHurt) {
@@ -660,6 +837,9 @@ int main(int argc, char **argv) {
 								actionTimer = heavyAttackDuration;
 								attackId++; // NEW unique attack
 							}
+						}
+						else if (event.key.keysym.sym == SDLK_F1 && event.key.repeat == 0) {
+							devMode = !devMode;
 						}
 					}
 					break;
