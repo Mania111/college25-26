@@ -80,11 +80,14 @@ void NewGame(double &stageTime, double &cameraX, double &cameraY, double &player
 struct RectD { double x, y, w, h; };
 
 struct GameObject {
-	int type; // 0 = box, 1 = spikes (later: enemies)
+	int type; // 0 = box, 1 = spikes
 	double x, y; // FEET contact point in world coords
 	double hitbox_w, hitbox_h; // hitbox size
 	int boxHP;     // only for box
 	bool alive;
+
+	// FIX: to prevent damage every frame, but still allow hitting multiple boxes per attack
+	int lastHitAttackId; // last attackId that damaged this object
 };
 
 // overlap
@@ -218,11 +221,12 @@ int main(int argc, char **argv) {
 	double lightAttackDuration = 0.18;
 	double heavyAttackDuration = 0.35;
 
-	double lightRange = 90.0;
-	double lightHeight = 70.0;
+	// MAKE HITBOXES BIGGER (per your request)
+	double lightRange = 160.0;
+	double lightHeight = 120.0;
 
-	double heavyRange = 140.0;
-	double heavyHeight = 90.0;
+	double heavyRange = 240.0;
+	double heavyHeight = 160.0;
 
 	double lightMoveScale = 0.55;
 	double heavyMoveScale = 0.25;
@@ -242,8 +246,8 @@ int main(int argc, char **argv) {
 	Action action = ACT_NONE;
 	double actionTimer = 0.0;
 
-	// IMPORTANT FIX: prevent multi-hitting per single attack press
-	bool attackDidHit = false;
+	// FIX: unique id per attack press
+	int attackId = 0;
 
 	// score + combo
 	int score = 0;
@@ -255,48 +259,61 @@ int main(int argc, char **argv) {
 	int playerHP = 100;
 	int playerHPMax = 100;
 
-	// spikes damage cooldown (prevents HP melting instantly)
+	// spikes damage cooldown
 	double spikeCooldown = 0.0;
 	const double SPIKE_COOLDOWN_TIME = 0.6;
 
-	// objects = boxes and spikes
-	const int MAX_OBJ = 20;
+	// objects
+	const int MAX_OBJ = 3; // ALWAYS 2 boxes + 1 spikes
 	GameObject objs[MAX_OBJ];
 	int objCount = 0;
 
-	// spawn helpers (FIX: bigger objects + more box HP)
+	// spawn helpers (bigger objects)
 	auto AddBox = [&](double x, double feetY) {
 		if (objCount >= MAX_OBJ) return;
-		objs[objCount++] = {0, x, feetY, 140.0, 120.0, 5, true}; // bigger, HP=5
+		objs[objCount].type = 0;
+		objs[objCount].x = x;
+		objs[objCount].y = feetY;
+		objs[objCount].hitbox_w = 220.0;
+		objs[objCount].hitbox_h = 180.0;
+		objs[objCount].boxHP = 6;
+		objs[objCount].alive = true;
+		objs[objCount].lastHitAttackId = -1;
+		objCount++;
 	};
 	auto AddSpikes = [&](double x, double feetY) {
 		if (objCount >= MAX_OBJ) return;
-		objs[objCount++] = {1, x, feetY, 140.0, 40.0, 0, true}; // bigger spikes
+		objs[objCount].type = 1;
+		objs[objCount].x = x;
+		objs[objCount].y = feetY;
+		objs[objCount].hitbox_w = 240.0;
+		objs[objCount].hitbox_h = 70.0;
+		objs[objCount].boxHP = 0;
+		objs[objCount].alive = true;
+		objs[objCount].lastHitAttackId = -1;
+		objCount++;
 	};
 
-	// allow objects anywhere within the floor lane
+	// object placement range (anywhere within the floor lane)
 	double objMinFeetY = FLOOR_Y + 30.0;
 	double objMaxFeetY = FLOOR_Y + FLOOR_H;
 
 	double minX = 200.0;
 	double maxX = STAGE_W - 200.0;
 
-	// FIX: helper that (re)spawns rarer objects (used at start AND on N)
+	// ALWAYS 2 BOXES + 1 SPIKES
 	auto RespawnObjects = [&]() {
 		objCount = 0;
-
-		// rarer: spawn fewer and probabilistic
-		if (Rand01() < 0.60) AddBox(RandRange(minX, maxX), RandRange(objMinFeetY, objMaxFeetY));
-		if (Rand01() < 0.45) AddBox(RandRange(minX, maxX), RandRange(objMinFeetY, objMaxFeetY));
-		if (Rand01() < 0.55) AddSpikes(RandRange(minX, maxX), RandRange(objMinFeetY, objMaxFeetY));
-		if (Rand01() < 0.40) AddSpikes(RandRange(minX, maxX), RandRange(objMinFeetY, objMaxFeetY));
+		AddBox(RandRange(minX, maxX), RandRange(objMinFeetY, objMaxFeetY));
+		AddBox(RandRange(minX, maxX), RandRange(objMinFeetY, objMaxFeetY));
+		AddSpikes(RandRange(minX, maxX), RandRange(objMinFeetY, objMaxFeetY));
 	};
 
 	RespawnObjects();
 
 	// camera
 	double cameraX = 0.0;
-	double cameraY = 0.0; // unused in this version
+	double cameraY = 0.0;
 	const int DEAD_LEFT = 220;
 	const int DEAD_RIGHT = 420;
 
@@ -361,7 +378,6 @@ int main(int argc, char **argv) {
 			if (actionTimer <= 0.0) {
 				action = ACT_NONE;
 				actionTimer = 0.0;
-				attackDidHit = false; // safe reset (also reset at start)
 			}
 		}
 
@@ -383,14 +399,12 @@ int main(int argc, char **argv) {
 		double speedScale = 1.0;
 		if (action == ACT_LIGHT) speedScale = lightMoveScale;
 		if (action == ACT_HEAVY) speedScale = heavyMoveScale;
-
-		// optional: freeze movement briefly when hurt
 		if (inHurt) speedScale = 0.0;
 
 		playerX += vx * playerSpeed * speedScale * delta;
 		playerY += vy * playerSpeed * speedScale * delta;
 
-		// walking animation (only when not attacking/jumping/hurt)
+		// walking animation
 		if (moving && action == ACT_NONE && !inJump && !inHurt) {
 			animTimer += delta;
 			while (animTimer >= ANIM_STEP_TIME) {
@@ -402,11 +416,11 @@ int main(int argc, char **argv) {
 			animStep = 0;
 		}
 
-		// clamp to stage bounds (X)
+		// clamp player X to stage
 		if (playerX < 0) playerX = 0;
 		if (playerX > STAGE_W) playerX = STAGE_W;
 
-		// floor lane clamp (Y) - feet stay on floor lane
+		// clamp player Y to floor lane
 		double footTop = FLOOR_Y + 30;
 		double footBottom = FLOOR_Y + FLOOR_H;
 		if (playerY < footTop) playerY = footTop;
@@ -416,13 +430,11 @@ int main(int argc, char **argv) {
 		double playerScreenX = playerX - cameraX;
 		if (playerScreenX < DEAD_LEFT)  cameraX = playerX - DEAD_LEFT;
 		if (playerScreenX > DEAD_RIGHT) cameraX = playerX - DEAD_RIGHT;
-
 		if (cameraX < 0) cameraX = 0;
 		if (cameraX > STAGE_W - SCREEN_WIDTH) cameraX = STAGE_W - SCREEN_WIDTH;
 
-		// choose sprite priority: hurt > attack > jump > walk > stand
+		// choose sprite
 		SDL_Surface* currentSprite = sprStand;
-
 		if (inHurt) currentSprite = sprHurt;
 		else if (action == ACT_LIGHT) currentSprite = sprAttackLight;
 		else if (action == ACT_HEAVY) currentSprite = sprAttackHeavy;
@@ -437,7 +449,7 @@ int main(int argc, char **argv) {
 			}
 		}
 
-		// ---- ATTACK HITBOX (always attacks to the RIGHT) ----
+		// ---- ATTACK HITBOX ----
 		RectD attackBox = {0,0,0,0};
 		bool attackActive = (action != ACT_NONE);
 
@@ -448,15 +460,15 @@ int main(int argc, char **argv) {
 			attackBox.w = range;
 			attackBox.h = height;
 
-			double frontOffset = 40.0;
+			// bigger forward offset so it overlaps boxes more easily
+			double frontOffset = 60.0;
 			attackBox.x = playerX + frontOffset;
 			attackBox.y = playerY - height;
 		}
 
-		// ---- PLAYER FEET HITBOX (for spikes) ----
-		// FIX: make it more "feet" than body (narrower + thinner)
-		double playerFootW = 28.0;
-		double playerFootH = 12.0;
+		// ---- PLAYER FEET HITBOX (BIGGER so spikes definitely work) ----
+		double playerFootW = 80.0;
+		double playerFootH = 40.0;
 		double pBoxX = playerX - playerFootW / 2.0;
 		double pBoxY = playerY - playerFootH;
 		double pBoxW = playerFootW;
@@ -471,44 +483,44 @@ int main(int argc, char **argv) {
 			double oW    = objs[i].hitbox_w;
 			double oH    = objs[i].hitbox_h;
 
-			// box: can be hit by attacks (FIX: only once per attack press)
+			// BOX: hit by attack
 			if (objs[i].type == 0) {
-				if (attackActive && !attackDidHit) {
+				if (attackActive) {
 					if (RectOverlap(attackBox.x, attackBox.y, attackBox.w, attackBox.h,
 					                oLeft, oTop, oW, oH)) {
 
-						attackDidHit = true;
+						// FIX: damage only ONCE per attack press per object
+						if (objs[i].lastHitAttackId != attackId) {
+							objs[i].lastHitAttackId = attackId;
 
-						objs[i].boxHP -= (action == ACT_LIGHT) ? 1 : 2;
+							objs[i].boxHP -= (action == ACT_LIGHT) ? 1 : 2;
 
-						// scoring + combo
-						int base = (action == ACT_LIGHT) ? 10 : 15;
-						int multiplier = 1 + comboCount;
-						score += base * multiplier;
+							int base = (action == ACT_LIGHT) ? 10 : 15;
+							int multiplier = 1 + comboCount;
+							score += base * multiplier;
 
-						comboCount += 1;
-						comboTimer = COMBO_WINDOW;
+							comboCount += 1;
+							comboTimer = COMBO_WINDOW;
 
-						if (objs[i].boxHP <= 0) {
-							objs[i].alive = false;
-							score += 50 * (1 + comboCount);
+							if (objs[i].boxHP <= 0) {
+								objs[i].alive = false;
+								score += 50 * (1 + comboCount);
+							}
 						}
 					}
 				}
 			}
 
-			// spikes: damage player when stepping on them (feet hitbox)
+			// SPIKES: damage player when FEET overlap
 			if (objs[i].type == 1) {
 				if (RectOverlap(pBoxX, pBoxY, pBoxW, pBoxH, oLeft, oTop, oW, oH)) {
 					if (spikeCooldown <= 0.0) {
 						playerHP -= 10;
 						if (playerHP < 0) playerHP = 0;
 
-						// getting hit resets combo
 						comboCount = 0;
 						comboTimer = 0.0;
 
-						// show OW sprite
 						inHurt = true;
 						hurtTimer = HURT_DURATION;
 
@@ -529,7 +541,7 @@ int main(int argc, char **argv) {
 		int floorScreenY = FLOOR_Y - (int)cameraY;
 		DrawRectangle(screen, 0, floorScreenY, SCREEN_WIDTH, FLOOR_H, floorEdge, floorCol);
 
-		// draw objects (simple rectangles)
+		// objects
 		int boxOut = SDL_MapRGB(screen->format, 200, 200, 200);
 		int boxIn  = SDL_MapRGB(screen->format, 90, 90, 90);
 		int spikeOut = SDL_MapRGB(screen->format, 255, 80, 80);
@@ -546,11 +558,8 @@ int main(int argc, char **argv) {
 			int left = sx - w/2;
 			int top  = syFeet - h;
 
-			if (objs[i].type == 0) {
-				DrawRectangle(screen, left, top, w, h, boxOut, boxIn);
-			} else {
-				DrawRectangle(screen, left, top, w, h, spikeOut, spikeIn);
-			}
+			if (objs[i].type == 0) DrawRectangle(screen, left, top, w, h, boxOut, boxIn);
+			else DrawRectangle(screen, left, top, w, h, spikeOut, spikeIn);
 		}
 
 		// player
@@ -566,18 +575,16 @@ int main(int argc, char **argv) {
 			fpsTimer -= 0.5;
 		}
 
-		// ---- UI: top panel ----
+		// UI panel
 		DrawRectangle(screen, 4, 4, SCREEN_WIDTH - 8, 52, czerwony, niebieski);
 
-		// time + fps
 		sprintf(text, "time = %.1lf s | fps = %.0lf | score=%d | combo=%d", stageTime, fps, score, comboCount);
 		DrawString(screen, 10, 10, text, charset);
 
-		// controls
 		sprintf(text, "Esc quit | N new | X jump | Z light atk | Y heavy atk");
 		DrawString(screen, 10, 26, text, charset);
 
-		// ---- UI: HP bar (top-left) ----
+		// HP bar
 		int barX = 10;
 		int barY = 42;
 		int barW = 180;
@@ -612,22 +619,17 @@ int main(int argc, char **argv) {
 					else if(event.key.keysym.sym == SDLK_n) {
 						NewGame(stageTime, cameraX, cameraY, playerX, playerY);
 
-						// reset player
 						playerHP = playerHPMax;
 						score = 0;
 						comboCount = 0;
 						comboTimer = 0.0;
 
-						// reset actions
 						action = ACT_NONE; actionTimer = 0.0;
-						attackDidHit = false;
 						inJump = false; z = 0.0; vz = 0.0;
 
-						// reset hurt
 						inHurt = false; hurtTimer = 0.0;
 						spikeCooldown = 0.0;
 
-						// FIX: respawn objects using the SAME random+rarer logic
 						RespawnObjects();
 					}
 
@@ -642,21 +644,21 @@ int main(int argc, char **argv) {
 							}
 						}
 
-						// light attack (fast)
+						// light attack
 						else if(event.key.keysym.sym == SDLK_z) {
 							if(action == ACT_NONE) {
 								action = ACT_LIGHT;
 								actionTimer = lightAttackDuration;
-								attackDidHit = false; // FIX: reset at start
+								attackId++; // NEW unique attack
 							}
 						}
 
-						// heavy attack (slow)
+						// heavy attack
 						else if(event.key.keysym.sym == SDLK_y) {
 							if(action == ACT_NONE) {
 								action = ACT_HEAVY;
 								actionTimer = heavyAttackDuration;
-								attackDidHit = false; // FIX: reset at start
+								attackId++; // NEW unique attack
 							}
 						}
 					}
