@@ -86,10 +86,17 @@ struct GameObject {
 	bool alive;
 };
 
-// AABB overlap
+// overlap
 bool RectOverlap(double ax, double ay, double aw, double ah,
                  double bx, double by, double bw, double bh) {
 	return (ax < bx + bw) && (ax + aw > bx) && (ay < by + bh) && (ay + ah > by);
+}
+
+double Rand01() {
+	return rand() / (double)RAND_MAX;
+}
+double RandRange(double a, double b) {
+	return a + (b - a) * Rand01();
 }
 
 int main(int argc, char **argv) {
@@ -114,6 +121,8 @@ int main(int argc, char **argv) {
 		printf("SDL_Init error: %s\n", SDL_GetError());
 		return 1;
 	}
+
+	srand((unsigned)SDL_GetTicks());
 
 	rc = SDL_CreateWindowAndRenderer(SCREEN_WIDTH, SCREEN_HEIGHT, 0, &window, &renderer);
 	if(rc != 0) {
@@ -152,9 +161,9 @@ int main(int argc, char **argv) {
 	sprWalk1 = SDL_LoadBMP("./player_walk1.bmp");
 	sprWalk2 = SDL_LoadBMP("./player_walk2.bmp");
 	sprJump  = SDL_LoadBMP("./player_jump.bmp");
-	sprAttackHeavy = SDL_LoadBMP("./player_attack.bmp");   // heavy
-	sprAttackLight = SDL_LoadBMP("./player_attack2.bmp");  // light
-	sprHurt = SDL_LoadBMP("./player_hurt.bmp");            // OW sprite
+	sprAttackHeavy = SDL_LoadBMP("./player_attack.bmp");
+	sprAttackLight = SDL_LoadBMP("./player_attack2.bmp");
+	sprHurt = SDL_LoadBMP("./player_hurt.bmp");
 
 	if(!sprStand || !sprWalk1 || !sprWalk2 || !sprJump || !sprAttackHeavy || !sprAttackLight || !sprHurt) {
 		printf("SDL_LoadBMP(player sprites) error: %s\n", SDL_GetError());
@@ -246,12 +255,12 @@ int main(int argc, char **argv) {
 	double spikeCooldown = 0.0;
 	const double SPIKE_COOLDOWN_TIME = 0.6;
 
-	// ---- objects (boxes + spikes now, enemies later) ----
+	// objects = boxes and spikes
 	const int MAX_OBJ = 20;
 	GameObject objs[MAX_OBJ];
 	int objCount = 0;
 
-	// spawn helpers (C++ lambda)
+	// spawn helpers
 	auto AddBox = [&](double x, double feetY) {
 		if (objCount >= MAX_OBJ) return;
 		objs[objCount++] = {0, x, feetY, 70.0, 60.0, 3, true}; // type 0 = box, HP=3
@@ -260,15 +269,21 @@ int main(int argc, char **argv) {
 		if (objCount >= MAX_OBJ) return;
 		objs[objCount++] = {1, x, feetY, 70.0, 25.0, 0, true}; // type 1 = spikes
 	};
+	double objMinFeetY = FLOOR_Y + 30.0;
+	double objMaxFeetY = FLOOR_Y + FLOOR_H;
 
 	// spawn objects
 	objCount = 0;
-	AddBox(500,  FLOOR_Y + FLOOR_H);
-	AddSpikes(650, FLOOR_Y + FLOOR_H);
-	AddBox(800,  FLOOR_Y + FLOOR_H);
-	AddSpikes(1100, FLOOR_Y + FLOOR_H);
 
-	// ---- camera ----
+	double minX = 200.0;
+	double maxX = STAGE_W - 200.0;
+
+	AddBox(RandRange(minX, maxX), RandRange(objMinFeetY, objMaxFeetY));
+	AddBox(RandRange(minX, maxX), RandRange(objMinFeetY, objMaxFeetY));
+	AddSpikes(RandRange(minX, maxX), RandRange(objMinFeetY, objMaxFeetY));
+	AddSpikes(RandRange(minX, maxX), RandRange(objMinFeetY, objMaxFeetY));
+
+	// camera
 	double cameraX = 0.0;
 	double cameraY = 0.0; // currently unused in your game
 	const int DEAD_LEFT = 220;
@@ -506,12 +521,6 @@ int main(int argc, char **argv) {
 
 		SDL_FillRect(screen, NULL, sky);
 
-		// background stripes
-		for (int i = 0; i < SCREEN_WIDTH; i += 80) {
-			int x = i - ((int)(cameraX * 0.2) % 80);
-			DrawRectangle(screen, x, 60, 40, 80, stripe, stripe);
-		}
-
 		// floor
 		int floorScreenY = FLOOR_Y - (int)cameraY;
 		DrawRectangle(screen, 0, floorScreenY, SCREEN_WIDTH, FLOOR_H, floorEdge, floorCol);
@@ -664,7 +673,6 @@ int main(int argc, char **argv) {
 					break;
 			}
 		}
-
 		frames++;
 	}
 
