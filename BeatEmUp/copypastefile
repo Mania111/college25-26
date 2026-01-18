@@ -1,68 +1,8 @@
-auto TryStartComboAction = [&](double now) -> void {
-	// Don't start a new combo action if one is already active
-	if (comboActionTimer > 0.0) return;
-
-	// 1) XXX => triple jump (example)
-	{
-		InputCmd p[] = { CMD_X, CMD_X, CMD_X };
-		if (BufMatch(&inputBuf, p, 3, now, INPUT_WINDOW)) {
-			currentComboAction = CA_TRIPLE_JUMP;
-			comboActionTimer = 0.30;
-			return;
-		}
-	}
-
-	// 2) YYY => fury (example: fast multi-hit window)
-	{
-		InputCmd p[] = { CMD_Y, CMD_Y, CMD_Y };
-		if (BufMatch(&inputBuf, p, 3, now, INPUT_WINDOW)) {
-			currentComboAction = CA_FURY;
-			comboActionTimer = 0.45;
-			return;
-		}
-	}
-
-	// 3) X Y X => uppercut (example)
-	{
-		InputCmd p[] = { CMD_X, CMD_Y, CMD_X };
-		if (BufMatch(&inputBuf, p, 3, now, INPUT_WINDOW)) {
-			currentComboAction = CA_UPPERCUT;
-			comboActionTimer = 0.35;
-			return;
-		}
-	}
-
-	// 4) Dash: double-tap direction (R R, L L, U U, D D)
-	{
-		// match newest first, so "R then R" is {CMD_R, CMD_R}
-		InputCmd pR[] = { CMD_R, CMD_R };
-		InputCmd pL[] = { CMD_L, CMD_L };
-		InputCmd pU[] = { CMD_U, CMD_U };
-		InputCmd pD[] = { CMD_D, CMD_D };
-
-		if (BufMatch(&inputBuf, pR, 2, now, DOUBLE_TAP_WINDOW)) {
-			currentComboAction = CA_DASH;
-			comboActionTimer = dashDuration;
-			dashVX = +1.0; dashVY = 0.0;
-			return;
-		}
-		if (BufMatch(&inputBuf, pL, 2, now, DOUBLE_TAP_WINDOW)) {
-			currentComboAction = CA_DASH;
-			comboActionTimer = dashDuration;
-			dashVX = -1.0; dashVY = 0.0;
-			return;
-		}
-		if (BufMatch(&inputBuf, pU, 2, now, DOUBLE_TAP_WINDOW)) {
-			currentComboAction = CA_DASH;
-			comboActionTimer = dashDuration;
-			dashVX = 0.0; dashVY = -1.0;
-			return;
-		}
-		if (BufMatch(&inputBuf, pD, 2, now, DOUBLE_TAP_WINDOW)) {
-			currentComboAction = CA_DASH;
-			comboActionTimer = dashDuration;
-			dashVX = 0.0; dashVY = +1.0;
-			return;
-		}
-	}
-};
+// If dashing: ignore normal movement and apply dash velocity
+if (currentComboAction == CA_DASH && comboActionTimer > 0.0) {
+	playerX += dashVX * dashSpeed * delta;
+	playerY += dashVY * dashSpeed * delta;
+} else {
+	playerX += vx * playerSpeed * speedScale * delta;
+	playerY += vy * playerSpeed * speedScale * delta;
+}
