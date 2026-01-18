@@ -1,3 +1,12 @@
+// ============================================================================
+// Beat 'em up (SDL2) - Project code (cleaned + academically commented)
+// Key requirement addressed:
+//   "Character movement and control parameters should be easy to change"
+// Implementation:
+//   - All feel/tuning parameters are centralized in GameTuning (one place).
+//   - Movement uses acceleration + friction (smooth control; easy to tune).
+// ============================================================================
+
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <stdio.h>
@@ -10,15 +19,17 @@
 #define SCREEN_WIDTH  640
 #define SCREEN_HEIGHT 480
 
-// draw a text txt on surface screen, starting from the point (x, y)
-// charset is a 128x128 bitmap containing character images
-void DrawString(SDL_Surface *screen, int x, int y, const char *text,
-                SDL_Surface *charset) {
+// ----------------------------------------------------------------------------
+//  Drawing helpers (provided style)
+// ----------------------------------------------------------------------------
+
+// Draw text using a charset (8x8 per character), starting at (x,y).
+void DrawString(SDL_Surface *screen, int x, int y, const char *text, SDL_Surface *charset) {
 	int px, py, c;
 	SDL_Rect s, d;
 	s.w = 8;  s.h = 8;
 	d.w = 8;  d.h = 8;
-	while(*text) {
+	while (*text) {
 		c = *text & 255;
 		px = (c % 16) * 8;
 		py = (c / 16) * 8;
@@ -30,8 +41,7 @@ void DrawString(SDL_Surface *screen, int x, int y, const char *text,
 	}
 }
 
-// draw a surface sprite on a surface screen in point (x, y)
-// (x, y) is the center of sprite on screen
+// Draw a sprite surface centered at (x,y).
 void DrawSurface(SDL_Surface *screen, SDL_Surface *sprite, int x, int y) {
 	SDL_Rect dest;
 	dest.x = x - sprite->w / 2;
@@ -41,72 +51,171 @@ void DrawSurface(SDL_Surface *screen, SDL_Surface *sprite, int x, int y) {
 	SDL_BlitSurface(sprite, NULL, screen, &dest);
 }
 
-// draw a single pixel
 void DrawPixel(SDL_Surface *surface, int x, int y, Uint32 color) {
 	int bpp = surface->format->BytesPerPixel;
 	Uint8 *p = (Uint8 *)surface->pixels + y * surface->pitch + x * bpp;
 	*(Uint32 *)p = color;
 }
 
-// draw a vertical (dx=0,dy=1) or horizontal (dx=1,dy=0) line
 void DrawLine(SDL_Surface *screen, int x, int y, int l, int dx, int dy, Uint32 color) {
-	for(int i = 0; i < l; i++) {
+	for (int i = 0; i < l; i++) {
 		DrawPixel(screen, x, y, color);
 		x += dx;
 		y += dy;
 	}
 }
 
-// draw a rectangle of size l by k
 void DrawRectangle(SDL_Surface *screen, int x, int y, int l, int k,
                    Uint32 outlineColor, Uint32 fillColor) {
 	DrawLine(screen, x, y, k, 0, 1, outlineColor);
 	DrawLine(screen, x + l - 1, y, k, 0, 1, outlineColor);
 	DrawLine(screen, x, y, l, 1, 0, outlineColor);
 	DrawLine(screen, x, y + k - 1, l, 1, 0, outlineColor);
-	for(int i = y + 1; i < y + k - 1; i++)
+	for (int i = y + 1; i < y + k - 1; i++)
 		DrawLine(screen, x + 1, i, l - 2, 1, 0, fillColor);
 }
 
-void NewGame(double &stageTime, double &cameraX, double &cameraY, double &playerX, double &playerY){
-	stageTime = 0.0;
-	cameraX = 0.0;
-	cameraY = 0.0;
-	playerX = 200.0;
-	playerY = 350.0;
-}
+// ----------------------------------------------------------------------------
+//  Small utility + math
+// ----------------------------------------------------------------------------
 
-// rect type for attack hitbox (world coords)
 struct RectD { double x, y, w, h; };
 
-struct GameObject {
-	int type; // 0 = box, 1 = spikes
-	double x, y; // FEET contact point in world coords
-	double hitbox_w, hitbox_h; // hitbox size
-	int boxHP;     // only for box
-	bool alive;
-
-	// prevent damage every frame per single attack press
-	int lastHitAttackId;
-};
-
-// overlap
 bool RectOverlap(double ax, double ay, double aw, double ah,
                  double bx, double by, double bw, double bh) {
 	return (ax < bx + bw) && (ax + aw > bx) && (ay < by + bh) && (ay + ah > by);
 }
 
-// ---------- COMBO / INPUT BUFFER ----------
+double Rand01() { return rand() / (double)RAND_MAX; }
+double RandRange(double a, double b) { return a + (b - a) * Rand01(); }
 
+// Approach value v towards target by at most maxDelta this frame.
+static double Approach(double v, double target, double maxDelta) {
+	if (v < target) {
+		v += maxDelta;
+		if (v > target) v = target;
+	} else if (v > target) {
+		v -= maxDelta;
+		if (v < target) v = target;
+	}
+	return v;
+}
+
+// ----------------------------------------------------------------------------
+//  Game tuning (ALL feel/control parameters in one place)
+//  This directly satisfies the requirement: "easy to change to achieve smooth control."
+// ----------------------------------------------------------------------------
+typedef struct GameTuning {
+	// Smooth movement feel (acceleration model in the floor lane)
+	double moveMaxSpeed;   // px/s
+	double moveAccel;      // px/s^2 (how quickly you reach max speed)
+	double moveFriction;   // px/s^2 (how quickly you stop when no input)
+
+	// Speed multipliers under states
+	double lightMoveScale;
+	double heavyMoveScale;
+	double hurtMoveScale;
+
+	// Jump physics (visual Z axis)
+	double gravity;        // px/s^2
+	double jumpVel;        // px/s
+	double tripleJumpScale;
+
+	// Attack timing
+	double lightAttackDuration;
+	double heavyAttackDuration;
+
+	// Attack hitboxes (player always attacks to the RIGHT)
+	double lightRange, lightHeight;
+	double heavyRange, heavyHeight;
+	double attackFrontOffset;
+
+	// Player "feet" hitbox (used for stepping on spikes)
+	double footBoxW, footBoxH;
+
+	// Spikes cooldown (prevents rapid HP melting)
+	double spikeCooldownTime;
+
+	// Dash + combo buffer windows
+	double dashSpeed;
+	double dashDuration;
+	double inputWindow;
+	double doubleTapWindow;
+
+	// Camera dead zone (X follow)
+	int deadLeft;
+	int deadRight;
+
+	// Floor lane clamp
+	double footTopOffset; // lane top = FLOOR_Y + offset
+} GameTuning;
+
+static GameTuning TuningDefault() {
+	GameTuning g;
+	// Smooth feel defaults (edit here to tune)
+	g.moveMaxSpeed   = 260.0;
+	g.moveAccel      = 2600.0;
+	g.moveFriction   = 3200.0;
+
+	g.lightMoveScale = 0.55;
+	g.heavyMoveScale = 0.25;
+	g.hurtMoveScale  = 0.0;
+
+	g.gravity        = 2200.0;
+	g.jumpVel        = 950.0;
+	g.tripleJumpScale = 1.35;
+
+	g.lightAttackDuration = 0.18;
+	g.heavyAttackDuration = 0.35;
+
+	// Big hitboxes (easier to see results in short demo)
+	g.lightRange   = 160.0; g.lightHeight = 120.0;
+	g.heavyRange   = 240.0; g.heavyHeight = 160.0;
+	g.attackFrontOffset = 60.0;
+
+	g.footBoxW = 80.0;
+	g.footBoxH = 40.0;
+
+	g.spikeCooldownTime = 0.60;
+
+	g.dashSpeed = 1100.0;
+	g.dashDuration = 0.12;
+	g.inputWindow = 0.55;
+	g.doubleTapWindow = 0.28;
+
+	g.deadLeft = 220;
+	g.deadRight = 420;
+
+	g.footTopOffset = 30.0;
+	return g;
+}
+
+// ----------------------------------------------------------------------------
+//  World objects (boxes and spikes)
+// ----------------------------------------------------------------------------
+struct GameObject {
+	int type;          // 0 = box, 1 = spikes
+	double x, y;       // FEET contact point (world coords)
+	double hitbox_w, hitbox_h;
+	int boxHP;         // boxes only
+	bool alive;
+
+	// Prevent dealing damage every frame for a single attack press.
+	int lastHitAttackId;
+};
+
+// ----------------------------------------------------------------------------
+//  Input buffer / combos (developer-mode visible)
+// ----------------------------------------------------------------------------
 enum InputCmd {
 	CMD_NONE = 0,
-	CMD_X,	// jump button (X)
-	CMD_Z,	// light attack (Z)
-	CMD_Y,	// heavy attack (Y)
-	CMD_L,	// move left tap (A/Left)
-	CMD_R,	// move right tap (D/Right)
-	CMD_U,	// move up tap (W/Up)
-	CMD_D,	// move down tap (S/Down)
+	CMD_X, // jump
+	CMD_Z, // light attack
+	CMD_Y, // heavy attack
+	CMD_L, // left tap
+	CMD_R, // right tap
+	CMD_U, // up tap
+	CMD_D  // down tap
 };
 
 const char* CmdName(InputCmd c) {
@@ -118,13 +227,13 @@ const char* CmdName(InputCmd c) {
 		case CMD_R: return "R";
 		case CMD_U: return "U";
 		case CMD_D: return "D";
-		default: return "_";
+		default:    return "_";
 	}
 }
 
 struct InputEvent {
 	InputCmd cmd;
-	double t; // seconds (stageTime)
+	double t; // time in seconds (stageTime)
 };
 
 struct InputBuffer {
@@ -140,6 +249,7 @@ void BufPush(InputBuffer* b, InputCmd cmd, double now) {
 	b->e[0].t = now;
 }
 
+// Match newest-first pattern p[0..n-1] within a time window.
 bool BufMatch(const InputBuffer* b, const InputCmd* p, int n, double now, double windowSec) {
 	if (b->count < n) return false;
 	for (int i = 0; i < n; i++) {
@@ -151,25 +261,36 @@ bool BufMatch(const InputBuffer* b, const InputCmd* p, int n, double now, double
 
 enum ComboAction {
 	CA_NONE = 0,
-	CA_TRIPLE_JUMP,	// XXX
+	CA_TRIPLE_JUMP, // XXX
 	CA_FURY,        // YYY
 	CA_UPPERCUT,    // X Y X
-	CA_DASH,        // double-tap direction
+	CA_DASH         // double-tap direction
 };
 
 const char* ActionName(ComboAction a) {
 	switch (a) {
 		case CA_TRIPLE_JUMP: return "TRIPLE_JUMP";
-		case CA_FURY: return "FURY";
-		case CA_UPPERCUT: return "UPPERCUT";
-		case CA_DASH: return "DASH";
-		default: return "NONE";
+		case CA_FURY:        return "FURY";
+		case CA_UPPERCUT:    return "UPPERCUT";
+		case CA_DASH:        return "DASH";
+		default:             return "NONE";
 	}
 }
 
-double Rand01() { return rand() / (double)RAND_MAX; }
-double RandRange(double a, double b) { return a + (b - a) * Rand01(); }
+// ----------------------------------------------------------------------------
+//  Reset helper (kept simple)
+// ----------------------------------------------------------------------------
+void NewGame(double &stageTime, double &cameraX, double &cameraY, double &playerX, double &playerY) {
+	stageTime = 0.0;
+	cameraX = 0.0;
+	cameraY = 0.0;
+	playerX = 200.0;
+	playerY = 350.0;
+}
 
+// ----------------------------------------------------------------------------
+//  Main
+// ----------------------------------------------------------------------------
 int main(int argc, char **argv) {
 	int t1, t2, quit, frames, rc;
 	double delta, stageTime, fpsTimer, fps;
@@ -177,7 +298,6 @@ int main(int argc, char **argv) {
 	SDL_Event event;
 	SDL_Surface *screen, *charset;
 
-	// player sprites
 	SDL_Surface *sprStand, *sprWalk1, *sprWalk2;
 	SDL_Surface *sprJump, *sprAttackHeavy, *sprAttackLight;
 	SDL_Surface *sprHurt;
@@ -186,9 +306,7 @@ int main(int argc, char **argv) {
 	SDL_Window *window;
 	SDL_Renderer *renderer;
 
-	printf("printf output goes here\n");
-
-	if(SDL_Init(SDL_INIT_EVERYTHING) != 0) {
+	if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
 		printf("SDL_Init error: %s\n", SDL_GetError());
 		return 1;
 	}
@@ -196,9 +314,9 @@ int main(int argc, char **argv) {
 	srand((unsigned)SDL_GetTicks());
 
 	rc = SDL_CreateWindowAndRenderer(SCREEN_WIDTH, SCREEN_HEIGHT, 0, &window, &renderer);
-	if(rc != 0) {
-		SDL_Quit();
+	if (rc != 0) {
 		printf("SDL_CreateWindowAndRenderer error: %s\n", SDL_GetError());
+		SDL_Quit();
 		return 1;
 	}
 
@@ -206,27 +324,27 @@ int main(int argc, char **argv) {
 	SDL_RenderSetLogicalSize(renderer, SCREEN_WIDTH, SCREEN_HEIGHT);
 
 	screen = SDL_CreateRGBSurface(0, SCREEN_WIDTH, SCREEN_HEIGHT, 32,
-		0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
+	                              0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
 
 	scrtex = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
-		SDL_TEXTUREACCESS_STREAMING, SCREEN_WIDTH, SCREEN_HEIGHT);
+	                           SDL_TEXTUREACCESS_STREAMING, SCREEN_WIDTH, SCREEN_HEIGHT);
 
 	SDL_ShowCursor(SDL_DISABLE);
 
-	// charset
+	// Charset (8x8 bitmap font)
 	charset = SDL_LoadBMP("./cs8x8.bmp");
-	if(charset == NULL) {
+	if (!charset) {
 		printf("SDL_LoadBMP(cs8x8.bmp) error: %s\n", SDL_GetError());
 		SDL_FreeSurface(screen);
 		SDL_DestroyTexture(scrtex);
-		SDL_DestroyWindow(window);
 		SDL_DestroyRenderer(renderer);
+		SDL_DestroyWindow(window);
 		SDL_Quit();
 		return 1;
 	}
 	SDL_SetColorKey(charset, true, 0x000000);
 
-	// load sprites
+	// Load sprites (BMP + colorkey transparency)
 	sprStand = SDL_LoadBMP("./player_stand.bmp");
 	sprWalk1 = SDL_LoadBMP("./player_walk1.bmp");
 	sprWalk2 = SDL_LoadBMP("./player_walk2.bmp");
@@ -235,18 +353,18 @@ int main(int argc, char **argv) {
 	sprAttackLight = SDL_LoadBMP("./player_attack2.bmp");
 	sprHurt = SDL_LoadBMP("./player_hurt.bmp");
 
-	if(!sprStand || !sprWalk1 || !sprWalk2 || !sprJump || !sprAttackHeavy || !sprAttackLight || !sprHurt) {
+	if (!sprStand || !sprWalk1 || !sprWalk2 || !sprJump || !sprAttackHeavy || !sprAttackLight || !sprHurt) {
 		printf("SDL_LoadBMP(player sprites) error: %s\n", SDL_GetError());
 		SDL_FreeSurface(charset);
 		SDL_FreeSurface(screen);
 		SDL_DestroyTexture(scrtex);
-		SDL_DestroyWindow(window);
 		SDL_DestroyRenderer(renderer);
+		SDL_DestroyWindow(window);
 		SDL_Quit();
 		return 1;
 	}
 
-	// transparency key (pink)
+	// Pink colorkey (255,0,243) treated as transparent
 	Uint32 key = SDL_MapRGB(sprStand->format, 255, 0, 243);
 	SDL_SetColorKey(sprStand, SDL_TRUE, key);
 	SDL_SetColorKey(sprWalk1, SDL_TRUE, key);
@@ -256,91 +374,70 @@ int main(int argc, char **argv) {
 	SDL_SetColorKey(sprAttackLight, SDL_TRUE, key);
 	SDL_SetColorKey(sprHurt, SDL_TRUE, key);
 
+	// UI colors
 	char text[512];
 	int czerwony = SDL_MapRGB(screen->format, 0xFF, 0x00, 0x00);
 	int niebieski = SDL_MapRGB(screen->format, 0x11, 0x11, 0xCC);
 
-	// ---- stage ----
+	// ------------------------------------------------------------------------
+	// Stage (world)
+	// ------------------------------------------------------------------------
 	const double STAGE_W = 2000.0;
 	const int FLOOR_Y = 260;
 	const int FLOOR_H = 200;
 
-	// ---- player (playerX,playerY are FEET coords) ----
+	// Centralized gameplay tuning (edit here for "smooth control")
+	GameTuning g = TuningDefault();
+
+	// ------------------------------------------------------------------------
+	// Player state
+	// NOTE: playerX/playerY represent the FEET contact point on the floor lane.
+	// ------------------------------------------------------------------------
 	double playerX = 200.0;
 	double playerY = FLOOR_Y + FLOOR_H / 2.0;
-	double playerSpeed = 260.0;
 
-	// jump tuning
-	double gravity = 2200.0;
-	double jumpVel = 950.0;
+	// Smooth movement uses velocity and acceleration:
+	double velX = 0.0;
+	double velY = 0.0;
 
-	// action tuning
-	double lightAttackDuration = 0.18;
-	double heavyAttackDuration = 0.35;
-
-	// hitboxes (big)
-	double lightRange = 160.0;
-	double lightHeight = 120.0;
-	double heavyRange = 240.0;
-	double heavyHeight = 160.0;
-
-	double lightMoveScale = 0.55;
-	double heavyMoveScale = 0.25;
-
-	// jump state
+	// Jump state (visual Z)
 	bool inJump = false;
 	double z = 0.0;
 	double vz = 0.0;
 
-	// hurt state
+	// Hurt state (briefly freezes movement + shows OW sprite)
 	bool inHurt = false;
 	double hurtTimer = 0.0;
 	const double HURT_DURATION = 0.25;
 
-	// attack state
+	// Attack state
 	enum Action { ACT_NONE, ACT_LIGHT, ACT_HEAVY };
 	Action action = ACT_NONE;
 	double actionTimer = 0.0;
 
-	// unique id per attack press
+	// Unique id per attack press (used to avoid repeated damage per frame)
 	int attackId = 0;
 
-	// -------- combo input system --------
-	InputBuffer inputBuf; inputBuf.count = 0;
-
-	bool devMode = false;
-	ComboAction currentComboAction = CA_NONE;
-	double comboActionTimer = 0.0;
-
-	// dash tuning
-	double dashSpeed = 1100.0;
-	double dashDuration = 0.12;
-	double dashVX = 0.0, dashVY = 0.0;
-
-	// buffer tuning
-	const double INPUT_WINDOW = 0.55;
-	const double DOUBLE_TAP_WINDOW = 0.28;
-
-	// score + combo
+	// Score + combo multiplier
 	int score = 0;
 	int comboCount = 0;
 	double comboTimer = 0.0;
 	const double COMBO_WINDOW = 1.0;
 
-	// player HP
+	// Player HP
 	int playerHP = 100;
-	int playerHPMax = 100;
+	const int playerHPMax = 100;
 
-	// spikes damage cooldown
+	// Spikes cooldown
 	double spikeCooldown = 0.0;
-	const double SPIKE_COOLDOWN_TIME = 0.6;
 
-	// objects (ALWAYS 2 boxes + 1 spikes)
+	// ------------------------------------------------------------------------
+	// Objects: ALWAYS 2 boxes + 1 spikes
+	// ------------------------------------------------------------------------
 	const int MAX_OBJ = 3;
 	GameObject objs[MAX_OBJ];
 	int objCount = 0;
 
-	// spawn helpers (big)
 	auto AddBox = [&](double x, double feetY) {
 		if (objCount >= MAX_OBJ) return;
 		objs[objCount].type = 0;
@@ -353,6 +450,7 @@ int main(int argc, char **argv) {
 		objs[objCount].lastHitAttackId = -1;
 		objCount++;
 	};
+
 	auto AddSpikes = [&](double x, double feetY) {
 		if (objCount >= MAX_OBJ) return;
 		objs[objCount].type = 1;
@@ -366,7 +464,7 @@ int main(int argc, char **argv) {
 		objCount++;
 	};
 
-	double objMinFeetY = FLOOR_Y + 30.0;
+	double objMinFeetY = FLOOR_Y + g.footTopOffset;
 	double objMaxFeetY = FLOOR_Y + FLOOR_H;
 	double minX = 200.0;
 	double maxX = STAGE_W - 200.0;
@@ -379,17 +477,102 @@ int main(int argc, char **argv) {
 	};
 	RespawnObjects();
 
-	// camera
+	// ------------------------------------------------------------------------
+	// Camera (X follow only)
+	// ------------------------------------------------------------------------
 	double cameraX = 0.0;
-	const int DEAD_LEFT = 220;
-	const int DEAD_RIGHT = 420;
+	double cameraY = 0.0; // unused (assignment allowed X-only)
 
-	// walk animation
+	// ------------------------------------------------------------------------
+	// Walk animation state (stand -> walk1 -> stand -> walk2 -> stand ...)
+	// ------------------------------------------------------------------------
 	double animTimer = 0.0;
 	int animStep = 0;
 	const double ANIM_STEP_TIME = 0.12;
 
-	// time init
+	// ------------------------------------------------------------------------
+	// Combo input buffer + developer mode
+	// ------------------------------------------------------------------------
+	InputBuffer inputBuf; inputBuf.count = 0;
+	bool devMode = false;
+
+	ComboAction currentComboAction = CA_NONE;
+	double comboActionTimer = 0.0;
+
+	// Dash state (direction is set by combo detection)
+	double dashVX = 0.0, dashVY = 0.0;
+
+	// Combo evaluation function (pattern-table style; easy to extend)
+	auto TryStartComboAction = [&](double now) -> void {
+		if (comboActionTimer > 0.0) return; // already doing one
+
+		// XXX => triple jump
+		{
+			InputCmd p[] = { CMD_X, CMD_X, CMD_X };
+			if (BufMatch(&inputBuf, p, 3, now, g.inputWindow)) {
+				currentComboAction = CA_TRIPLE_JUMP;
+				comboActionTimer = 0.30;
+				return;
+			}
+		}
+
+		// YYY => fury
+		{
+			InputCmd p[] = { CMD_Y, CMD_Y, CMD_Y };
+			if (BufMatch(&inputBuf, p, 3, now, g.inputWindow)) {
+				currentComboAction = CA_FURY;
+				comboActionTimer = 0.55;
+				return;
+			}
+		}
+
+		// X Y X => uppercut
+		{
+			InputCmd p[] = { CMD_X, CMD_Y, CMD_X };
+			if (BufMatch(&inputBuf, p, 3, now, g.inputWindow)) {
+				currentComboAction = CA_UPPERCUT;
+				comboActionTimer = 0.40;
+				return;
+			}
+		}
+
+		// Dash => double tap direction
+		{
+			InputCmd pR[] = { CMD_R, CMD_R };
+			InputCmd pL[] = { CMD_L, CMD_L };
+			InputCmd pU[] = { CMD_U, CMD_U };
+			InputCmd pD[] = { CMD_D, CMD_D };
+
+			if (BufMatch(&inputBuf, pR, 2, now, g.doubleTapWindow)) {
+				currentComboAction = CA_DASH;
+				comboActionTimer = g.dashDuration;
+				dashVX = +1.0; dashVY = 0.0;
+				return;
+			}
+			if (BufMatch(&inputBuf, pL, 2, now, g.doubleTapWindow)) {
+				currentComboAction = CA_DASH;
+				comboActionTimer = g.dashDuration;
+				dashVX = -1.0; dashVY = 0.0;
+				return;
+			}
+			if (BufMatch(&inputBuf, pU, 2, now, g.doubleTapWindow)) {
+				currentComboAction = CA_DASH;
+				comboActionTimer = g.dashDuration;
+				dashVX = 0.0; dashVY = -1.0;
+				return;
+			}
+			if (BufMatch(&inputBuf, pD, 2, now, g.doubleTapWindow)) {
+				currentComboAction = CA_DASH;
+				comboActionTimer = g.dashDuration;
+				dashVX = 0.0; dashVY = +1.0;
+				return;
+			}
+		}
+	};
+
+	// ------------------------------------------------------------------------
+	// Time init
+	// ------------------------------------------------------------------------
 	t1 = SDL_GetTicks();
 	stageTime = 0.0;
 	fpsTimer = 0.0;
@@ -397,88 +580,27 @@ int main(int argc, char **argv) {
 	frames = 0;
 	quit = 0;
 
-	// Evaluate combos (pattern table)
-	auto TryStartComboAction = [&](double now) -> void {
-		if (comboActionTimer > 0.0) return;
-
-		{ // XXX => TRIPLE JUMP
-			InputCmd p[] = { CMD_X, CMD_X, CMD_X };
-			if (BufMatch(&inputBuf, p, 3, now, INPUT_WINDOW)) {
-				currentComboAction = CA_TRIPLE_JUMP;
-				comboActionTimer = 0.30;
-				return;
-			}
-		}
-
-		{ // YYY => FURY
-			InputCmd p[] = { CMD_Y, CMD_Y, CMD_Y };
-			if (BufMatch(&inputBuf, p, 3, now, INPUT_WINDOW)) {
-				currentComboAction = CA_FURY;
-				comboActionTimer = 0.55; // lasts a bit
-				return;
-			}
-		}
-
-		{ // X Y X => UPPERCUT
-			InputCmd p[] = { CMD_X, CMD_Y, CMD_X };
-			if (BufMatch(&inputBuf, p, 3, now, INPUT_WINDOW)) {
-				currentComboAction = CA_UPPERCUT;
-				comboActionTimer = 0.40;
-				return;
-			}
-		}
-
-		{ // dash: double tap direction
-			InputCmd pR[] = { CMD_R, CMD_R };
-			InputCmd pL[] = { CMD_L, CMD_L };
-			InputCmd pU[] = { CMD_U, CMD_U };
-			InputCmd pD[] = { CMD_D, CMD_D };
-
-			if (BufMatch(&inputBuf, pR, 2, now, DOUBLE_TAP_WINDOW)) {
-				currentComboAction = CA_DASH;
-				comboActionTimer = dashDuration;
-				dashVX = +1.0; dashVY = 0.0;
-				return;
-			}
-			if (BufMatch(&inputBuf, pL, 2, now, DOUBLE_TAP_WINDOW)) {
-				currentComboAction = CA_DASH;
-				comboActionTimer = dashDuration;
-				dashVX = -1.0; dashVY = 0.0;
-				return;
-			}
-			if (BufMatch(&inputBuf, pU, 2, now, DOUBLE_TAP_WINDOW)) {
-				currentComboAction = CA_DASH;
-				comboActionTimer = dashDuration;
-				dashVX = 0.0; dashVY = -1.0;
-				return;
-			}
-			if (BufMatch(&inputBuf, pD, 2, now, DOUBLE_TAP_WINDOW)) {
-				currentComboAction = CA_DASH;
-				comboActionTimer = dashDuration;
-				dashVX = 0.0; dashVY = +1.0;
-				return;
-			}
-		}
-	};
-
-	while(!quit) {
+	// ------------------------------------------------------------------------
+	// Main loop
+	// ------------------------------------------------------------------------
+	while (!quit) {
 		t2 = SDL_GetTicks();
 		delta = (t2 - t1) * 0.001;
 		t1 = t2;
 
 		stageTime += delta;
 
-		// ---- FIX: combo-action timer update MUST be inside the loop ----
+		// --- combo-action timer update ---
 		if (comboActionTimer > 0.0) {
 			comboActionTimer -= delta;
 			if (comboActionTimer <= 0.0) {
 				comboActionTimer = 0.0;
-				currentComboAction = CA_NONE;   // FIX typo
+				currentComboAction = CA_NONE;
 				dashVX = dashVY = 0.0;
 			}
 		}
 
-		// combo score timer decay
+		// --- score combo timer decay ---
 		if (comboTimer > 0.0) {
 			comboTimer -= delta;
 			if (comboTimer <= 0.0) {
@@ -487,13 +609,13 @@ int main(int argc, char **argv) {
 			}
 		}
 
-		// spikes cooldown
+		// --- spikes cooldown ---
 		if (spikeCooldown > 0.0) {
 			spikeCooldown -= delta;
 			if (spikeCooldown < 0.0) spikeCooldown = 0.0;
 		}
 
-		// hurt timer
+		// --- hurt timer ---
 		if (inHurt) {
 			hurtTimer -= delta;
 			if (hurtTimer <= 0.0) {
@@ -502,9 +624,9 @@ int main(int argc, char **argv) {
 			}
 		}
 
-		// jump physics
+		// --- jump physics (visual Z axis) ---
 		if (inJump) {
-			vz -= gravity * delta;
+			vz -= g.gravity * delta;
 			z  += vz * delta;
 			if (z <= 0.0) {
 				z = 0.0;
@@ -513,7 +635,7 @@ int main(int argc, char **argv) {
 			}
 		}
 
-		// attack timer
+		// --- attack timer ---
 		if (action != ACT_NONE) {
 			actionTimer -= delta;
 			if (actionTimer <= 0.0) {
@@ -522,35 +644,50 @@ int main(int argc, char **argv) {
 			}
 		}
 
-		// --- movement input ---
+		// --------------------------------------------------------------------
+		// Movement input (continuous) + smooth control using accel/friction.
+		// --------------------------------------------------------------------
 		const Uint8 *keys = SDL_GetKeyboardState(NULL);
 
-		double vx = 0.0, vy = 0.0;
-		if(keys[SDL_SCANCODE_LEFT]  || keys[SDL_SCANCODE_A]) vx -= 1.0;
-		if(keys[SDL_SCANCODE_RIGHT] || keys[SDL_SCANCODE_D]) vx += 1.0;
-		if(keys[SDL_SCANCODE_UP]    || keys[SDL_SCANCODE_W]) vy -= 1.0;
-		if(keys[SDL_SCANCODE_DOWN]  || keys[SDL_SCANCODE_S]) vy += 1.0;
+		double inX = 0.0, inY = 0.0;
+		if (keys[SDL_SCANCODE_LEFT]  || keys[SDL_SCANCODE_A]) inX -= 1.0;
+		if (keys[SDL_SCANCODE_RIGHT] || keys[SDL_SCANCODE_D]) inX += 1.0;
+		if (keys[SDL_SCANCODE_UP]    || keys[SDL_SCANCODE_W]) inY -= 1.0;
+		if (keys[SDL_SCANCODE_DOWN]  || keys[SDL_SCANCODE_S]) inY += 1.0;
 
-		double len = sqrt(vx*vx + vy*vy);
-		if(len > 0.0) { vx /= len; vy /= len; }
-		bool moving = (len > 0.0);
+		double inLen = sqrt(inX*inX + inY*inY);
+		if (inLen > 0.0) { inX /= inLen; inY /= inLen; }
+		bool moving = (inLen > 0.0);
 
-		// movement reduced while attacking
+		// Speed multipliers based on state
 		double speedScale = 1.0;
-		if (action == ACT_LIGHT) speedScale = lightMoveScale;
-		if (action == ACT_HEAVY) speedScale = heavyMoveScale;
-		if (inHurt) speedScale = 0.0;
+		if (action == ACT_LIGHT) speedScale = g.lightMoveScale;
+		if (action == ACT_HEAVY) speedScale = g.heavyMoveScale;
+		if (inHurt) speedScale = g.hurtMoveScale;
 
-		// dash overrides movement
+		// Dash overrides normal movement
 		if (currentComboAction == CA_DASH && comboActionTimer > 0.0) {
-			playerX += dashVX * dashSpeed * delta;
-			playerY += dashVY * dashSpeed * delta;
+			playerX += dashVX * g.dashSpeed * delta;
+			playerY += dashVY * g.dashSpeed * delta;
+			velX = 0.0; velY = 0.0; // avoid "snap back" after dash
 		} else {
-			playerX += vx * playerSpeed * speedScale * delta;
-			playerY += vy * playerSpeed * speedScale * delta;
+			// Desired velocities based on input
+			double targetVX = inX * g.moveMaxSpeed * speedScale;
+			double targetVY = inY * g.moveMaxSpeed * speedScale;
+
+			if (moving) {
+				velX = Approach(velX, targetVX, g.moveAccel * delta);
+				velY = Approach(velY, targetVY, g.moveAccel * delta);
+			} else {
+				velX = Approach(velX, 0.0, g.moveFriction * delta);
+				velY = Approach(velY, 0.0, g.moveFriction * delta);
+			}
+
+			playerX += velX * delta;
+			playerY += velY * delta;
 		}
 
-		// walking animation
+		// Walking animation (only when not attacking/jumping/hurt)
 		if (moving && action == ACT_NONE && !inJump && !inHurt) {
 			animTimer += delta;
 			while (animTimer >= ANIM_STEP_TIME) {
@@ -562,24 +699,26 @@ int main(int argc, char **argv) {
 			animStep = 0;
 		}
 
-		// clamp player X to stage
+		// Clamp player X to stage boundaries
 		if (playerX < 0) playerX = 0;
 		if (playerX > STAGE_W) playerX = STAGE_W;
 
-		// clamp player Y to floor lane
-		double footTop = FLOOR_Y + 30;
+		// Clamp player Y to the floor lane ("can move within floor, not into sky")
+		double footTop = FLOOR_Y + g.footTopOffset;
 		double footBottom = FLOOR_Y + FLOOR_H;
 		if (playerY < footTop) playerY = footTop;
 		if (playerY > footBottom) playerY = footBottom;
 
-		// camera follow (X only)
+		// Camera follow on X axis with deadzone
 		double playerScreenX = playerX - cameraX;
-		if (playerScreenX < DEAD_LEFT)  cameraX = playerX - DEAD_LEFT;
-		if (playerScreenX > DEAD_RIGHT) cameraX = playerX - DEAD_RIGHT;
+		if (playerScreenX < g.deadLeft)  cameraX = playerX - g.deadLeft;
+		if (playerScreenX > g.deadRight) cameraX = playerX - g.deadRight;
 		if (cameraX < 0) cameraX = 0;
 		if (cameraX > STAGE_W - SCREEN_WIDTH) cameraX = STAGE_W - SCREEN_WIDTH;
 
-		// choose sprite
+		// --------------------------------------------------------------------
+		// Sprite selection priority: hurt > attack > jump > walk > stand
+		// --------------------------------------------------------------------
 		SDL_Surface* currentSprite = sprStand;
 		if (inHurt) currentSprite = sprHurt;
 		else if (action == ACT_LIGHT) currentSprite = sprAttackLight;
@@ -595,31 +734,35 @@ int main(int argc, char **argv) {
 			}
 		}
 
-		// ---- ATTACK HITBOX ----
+		// --------------------------------------------------------------------
+		// Hitboxes
+		// --------------------------------------------------------------------
+
+		// Attack hitbox (always right of player feet)
 		RectD attackBox = {0,0,0,0};
 		bool attackActive = (action != ACT_NONE);
 
 		if (attackActive) {
-			double range  = (action == ACT_LIGHT) ? lightRange  : heavyRange;
-			double height = (action == ACT_LIGHT) ? lightHeight : heavyHeight;
+			double range  = (action == ACT_LIGHT) ? g.lightRange  : g.heavyRange;
+			double height = (action == ACT_LIGHT) ? g.lightHeight : g.heavyHeight;
 
 			attackBox.w = range;
 			attackBox.h = height;
-
-			double frontOffset = 60.0;
-			attackBox.x = playerX + frontOffset;
+			attackBox.x = playerX + g.attackFrontOffset;
 			attackBox.y = playerY - height;
 		}
 
-		// ---- PLAYER FEET HITBOX ----
-		double playerFootW = 80.0;
-		double playerFootH = 40.0;
-		double pBoxX = playerX - playerFootW / 2.0;
-		double pBoxY = playerY - playerFootH;
-		double pBoxW = playerFootW;
-		double pBoxH = playerFootH;
+		// Player feet hitbox (used for spikes)
+		double pBoxX = playerX - g.footBoxW / 2.0;
+		double pBoxY = playerY - g.footBoxH;
+		double pBoxW = g.footBoxW;
+		double pBoxH = g.footBoxH;
 
-		// ---- OBJECT INTERACTIONS ----
+		// --------------------------------------------------------------------
+		// Interactions
+		//  - Boxes: damaged by attack hitbox (once per press via attackId)
+		//  - Spikes: damage player when feet overlaps (with cooldown)
+		// --------------------------------------------------------------------
 		for (int i = 0; i < objCount; i++) {
 			if (!objs[i].alive) continue;
 
@@ -628,70 +771,73 @@ int main(int argc, char **argv) {
 			double oW    = objs[i].hitbox_w;
 			double oH    = objs[i].hitbox_h;
 
-			// BOX: hit by attack
+			// Boxes
 			if (objs[i].type == 0) {
-				if (attackActive) {
-					if (RectOverlap(attackBox.x, attackBox.y, attackBox.w, attackBox.h,
-					                oLeft, oTop, oW, oH)) {
+				if (attackActive &&
+				    RectOverlap(attackBox.x, attackBox.y, attackBox.w, attackBox.h,
+				                oLeft, oTop, oW, oH)) {
 
-						if (objs[i].lastHitAttackId != attackId) {
-							objs[i].lastHitAttackId = attackId;
+					// Damage only once per attack press per object
+					if (objs[i].lastHitAttackId != attackId) {
+						objs[i].lastHitAttackId = attackId;
 
-							// base damage
-							int dmg = (action == ACT_LIGHT) ? 1 : 2;
+						int dmg = (action == ACT_LIGHT) ? 1 : 2;
+						// Combo-action bonuses
+						if (currentComboAction == CA_FURY) dmg += 1;
+						if (currentComboAction == CA_UPPERCUT) dmg += 2;
 
-							// combo-action bonuses
-							if (currentComboAction == CA_FURY) dmg += 1;
-							if (currentComboAction == CA_UPPERCUT) dmg += 2;
+						objs[i].boxHP -= dmg;
 
-							objs[i].boxHP -= dmg;
+						// Scoring with multiplier
+						int base = (action == ACT_LIGHT) ? 10 : 15;
+						int multiplier = 1 + comboCount;
+						score += base * multiplier;
 
-							int base = (action == ACT_LIGHT) ? 10 : 15;
-							int multiplier = 1 + comboCount;
-							score += base * multiplier;
+						comboCount += 1;
+						comboTimer = COMBO_WINDOW;
 
-							comboCount += 1;
-							comboTimer = COMBO_WINDOW;
-
-							if (objs[i].boxHP <= 0) {
-								objs[i].alive = false;
-								score += 50 * (1 + comboCount);
-							}
+						if (objs[i].boxHP <= 0) {
+							objs[i].alive = false;
+							score += 50 * (1 + comboCount);
 						}
 					}
 				}
 			}
 
-			// SPIKES: damage player when FEET overlap
+			// Spikes
 			if (objs[i].type == 1) {
 				if (RectOverlap(pBoxX, pBoxY, pBoxW, pBoxH, oLeft, oTop, oW, oH)) {
 					if (spikeCooldown <= 0.0) {
 						playerHP -= 10;
 						if (playerHP < 0) playerHP = 0;
 
+						// Getting hit resets score combo
 						comboCount = 0;
 						comboTimer = 0.0;
 
+						// Show hurt sprite briefly
 						inHurt = true;
 						hurtTimer = HURT_DURATION;
 
-						spikeCooldown = SPIKE_COOLDOWN_TIME;
+						spikeCooldown = g.spikeCooldownTime;
 					}
 				}
 			}
 		}
 
-		// ---- DRAW ----
+		// --------------------------------------------------------------------
+		// DRAW
+		// --------------------------------------------------------------------
 		int sky      = SDL_MapRGB(screen->format, 25, 25, 55);
 		int floorCol = SDL_MapRGB(screen->format, 85, 95, 85);
 		int floorEdge= SDL_MapRGB(screen->format, 25, 25, 30);
 
 		SDL_FillRect(screen, NULL, sky);
 
-		// floor
+		// Floor (screen coords). CameraY is unused by design.
 		DrawRectangle(screen, 0, FLOOR_Y, SCREEN_WIDTH, FLOOR_H, floorEdge, floorCol);
 
-		// objects
+		// Draw objects as rectangles (can be replaced with sprites later)
 		int boxOut = SDL_MapRGB(screen->format, 200, 200, 200);
 		int boxIn  = SDL_MapRGB(screen->format, 90, 90, 90);
 		int spikeOut = SDL_MapRGB(screen->format, 255, 80, 80);
@@ -701,7 +847,7 @@ int main(int argc, char **argv) {
 			if (!objs[i].alive) continue;
 
 			int sx = (int)(objs[i].x - cameraX);
-			int syFeet = (int)(objs[i].y);
+			int syFeet = (int)(objs[i].y); // cameraY not used
 			int w = (int)objs[i].hitbox_w;
 			int h = (int)objs[i].hitbox_h;
 
@@ -712,14 +858,14 @@ int main(int argc, char **argv) {
 			else DrawRectangle(screen, left, top, w, h, spikeOut, spikeIn);
 		}
 
-		// player (playerY is FEET, so centerY = feet - h/2)
+		// Draw player: sprite center Y = feetY - (spriteH/2) - z
 		int px = (int)(playerX - cameraX);
 		int pyCenter = (int)(playerY - z) - currentSprite->h / 2;
 		DrawSurface(screen, currentSprite, px, pyCenter);
 
 		// FPS calc
 		fpsTimer += delta;
-		if(fpsTimer > 0.5) {
+		if (fpsTimer > 0.5) {
 			fps = frames * 2;
 			frames = 0;
 			fpsTimer -= 0.5;
@@ -749,41 +895,51 @@ int main(int argc, char **argv) {
 		sprintf(text, "%d/%d", playerHP, playerHPMax);
 		DrawString(screen, barX + barW - 48, barY - 1, text, charset);
 
-		// DEV MODE: show buffer + current combo action
+		// Developer mode: show buffer + current action + tuning snapshot
 		if (devMode) {
 			int y0 = 64;
 			sprintf(text, "DEV: action=%s (%.2fs)", ActionName(currentComboAction), comboActionTimer);
 			DrawString(screen, 10, y0, text, charset);
 
+			sprintf(text, "TUNE: vmax=%.0f accel=%.0f fric=%.0f",
+			        g.moveMaxSpeed, g.moveAccel, g.moveFriction);
+			DrawString(screen, 10, y0 + 12, text, charset);
+
 			char bufLine[512];
 			strcpy(bufLine, "BUF: ");
 			for (int i = 0; i < inputBuf.count; i++) {
-				char part[32];
+				char part[64];
 				double age = stageTime - inputBuf.e[i].t;
 				sprintf(part, "%s(%.2f) ", CmdName(inputBuf.e[i].cmd), age);
 				strcat(bufLine, part);
 			}
-			DrawString(screen, 10, y0 + 12, bufLine, charset);
+			DrawString(screen, 10, y0 + 24, bufLine, charset);
 		}
 
 		SDL_UpdateTexture(scrtex, NULL, screen->pixels, screen->pitch);
 		SDL_RenderCopy(renderer, scrtex, NULL, NULL);
 		SDL_RenderPresent(renderer);
 
-		// ---- events ----
-		while(SDL_PollEvent(&event)) {
-			switch(event.type) {
-				case SDL_KEYDOWN:
-					if(event.key.keysym.sym == SDLK_ESCAPE) quit = 1;
+		// --------------------------------------------------------------------
+		// Event handling (discrete presses go into the input buffer)
+		// --------------------------------------------------------------------
+		while (SDL_PollEvent(&event)) {
+			switch (event.type) {
+				case SDL_KEYDOWN: {
+					SDL_Keycode k = event.key.keysym.sym;
 
-					// dev mode
-					if(event.key.keysym.sym == SDLK_F1 && event.key.repeat == 0) {
+					if (k == SDLK_ESCAPE) quit = 1;
+
+					// Toggle dev mode
+					if (k == SDLK_F1 && event.key.repeat == 0) {
 						devMode = !devMode;
 					}
 
-					// new game
-					else if(event.key.keysym.sym == SDLK_n) {
-						NewGame(stageTime, cameraX, (double&)cameraX /*unused*/, playerX, playerY);
+					// New game reset
+					else if (k == SDLK_n) {
+						NewGame(stageTime, cameraX, cameraY, playerX, playerY);
+
+						velX = velY = 0.0;
 
 						playerHP = playerHPMax;
 						score = 0;
@@ -805,65 +961,66 @@ int main(int argc, char **argv) {
 						RespawnObjects();
 					}
 
-					// one-tap inputs for buffer (dash detection)
-					else if(event.key.repeat == 0) {
-						SDL_Keycode k = event.key.keysym.sym;
-
-						// movement taps -> buffer
+					// Buffer inputs (only once per press)
+					else if (event.key.repeat == 0) {
+						// Movement taps for dash detection
 						if (k == SDLK_a || k == SDLK_LEFT)  { BufPush(&inputBuf, CMD_L, stageTime); TryStartComboAction(stageTime); }
 						if (k == SDLK_d || k == SDLK_RIGHT) { BufPush(&inputBuf, CMD_R, stageTime); TryStartComboAction(stageTime); }
 						if (k == SDLK_w || k == SDLK_UP)    { BufPush(&inputBuf, CMD_U, stageTime); TryStartComboAction(stageTime); }
 						if (k == SDLK_s || k == SDLK_DOWN)  { BufPush(&inputBuf, CMD_D, stageTime); TryStartComboAction(stageTime); }
 
-						// X: jump + buffer + triple jump effect
-						if(k == SDLK_x) {
+						// Jump (X) + buffer
+						if (k == SDLK_x) {
 							BufPush(&inputBuf, CMD_X, stageTime);
 							TryStartComboAction(stageTime);
 
-							double usedJumpVel = jumpVel;
-							if (currentComboAction == CA_TRIPLE_JUMP) usedJumpVel = jumpVel * 1.35;
+							double usedJumpVel = g.jumpVel;
+							if (currentComboAction == CA_TRIPLE_JUMP) usedJumpVel *= g.tripleJumpScale;
 
-							if(!inJump) {
+							if (!inJump) {
 								inJump = true;
 								vz = usedJumpVel;
 							}
 						}
 
-						// Z: light attack + buffer
-						else if(k == SDLK_z) {
+						// Light attack (Z) + buffer
+						else if (k == SDLK_z) {
 							BufPush(&inputBuf, CMD_Z, stageTime);
 							TryStartComboAction(stageTime);
 
-							if(action == ACT_NONE) {
+							if (action == ACT_NONE) {
 								action = ACT_LIGHT;
-								actionTimer = lightAttackDuration;
-								attackId++;
+								actionTimer = g.lightAttackDuration;
+								attackId++; // unique id for this press
 							}
 						}
 
-						// Y: heavy attack + buffer (+ uppercut can be treated as buffed heavy)
-						else if(k == SDLK_y) {
+						// Heavy attack (Y) + buffer
+						else if (k == SDLK_y) {
 							BufPush(&inputBuf, CMD_Y, stageTime);
 							TryStartComboAction(stageTime);
 
-							if(action == ACT_NONE) {
+							if (action == ACT_NONE) {
 								action = ACT_HEAVY;
-								actionTimer = heavyAttackDuration;
-								attackId++;
+								actionTimer = g.heavyAttackDuration;
+								attackId++; // unique id for this press
 							}
 						}
 					}
-					break;
+				} break;
 
 				case SDL_QUIT:
 					quit = 1;
 					break;
 			}
 		}
+
 		frames++;
 	}
 
-	// free surfaces
+	// ------------------------------------------------------------------------
+	// Cleanup
+	// ------------------------------------------------------------------------
 	SDL_FreeSurface(sprStand);
 	SDL_FreeSurface(sprWalk1);
 	SDL_FreeSurface(sprWalk2);
@@ -871,12 +1028,14 @@ int main(int argc, char **argv) {
 	SDL_FreeSurface(sprAttackHeavy);
 	SDL_FreeSurface(sprAttackLight);
 	SDL_FreeSurface(sprHurt);
+
 	SDL_FreeSurface(charset);
 	SDL_FreeSurface(screen);
 
 	SDL_DestroyTexture(scrtex);
 	SDL_DestroyRenderer(renderer);
 	SDL_DestroyWindow(window);
+
 	SDL_Quit();
 	return 0;
 }
