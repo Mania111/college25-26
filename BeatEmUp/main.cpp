@@ -86,8 +86,8 @@ struct GameObject {
 	int boxHP;     // only for box
 	bool alive;
 
-	// FIX: to prevent damage every frame, but still allow hitting multiple boxes per attack
-	int lastHitAttackId; // last attackId that damaged this object
+	// prevent damage every frame per single attack press
+	int lastHitAttackId;
 };
 
 // overlap
@@ -128,23 +128,20 @@ struct InputEvent {
 };
 
 struct InputBuffer {
-	static const int CAP = 16;
+	enum { CAP = 16 };
 	InputEvent e[CAP];
 	int count;
 };
 
 void BufPush(InputBuffer* b, InputCmd cmd, double now) {
-	// shift right, newest at index 0
 	if (b->count < InputBuffer::CAP) b->count++;
 	for (int i = b->count - 1; i > 0; --i) b->e[i] = b->e[i - 1];
 	b->e[0].cmd = cmd;
 	b->e[0].t = now;
 }
 
-// Checks if buffer starts with pattern p[0..n-1] within time window (max age)
 bool BufMatch(const InputBuffer* b, const InputCmd* p, int n, double now, double windowSec) {
 	if (b->count < n) return false;
-
 	for (int i = 0; i < n; i++) {
 		if (b->e[i].cmd != p[i]) return false;
 		if (now - b->e[i].t > windowSec) return false;
@@ -152,13 +149,12 @@ bool BufMatch(const InputBuffer* b, const InputCmd* p, int n, double now, double
 	return true;
 }
 
-// ---------- ACTIONS (extendable) ----------
 enum ComboAction {
 	CA_NONE = 0,
 	CA_TRIPLE_JUMP,	// XXX
-	CA_FURY,	// YYY
-	CA_UPPERCUT,	// X Y X
-	CA_DASH,	// double-tap direction
+	CA_FURY,        // YYY
+	CA_UPPERCUT,    // X Y X
+	CA_DASH,        // double-tap direction
 };
 
 const char* ActionName(ComboAction a) {
@@ -171,12 +167,8 @@ const char* ActionName(ComboAction a) {
 	}
 }
 
-double Rand01() {
-	return rand() / (double)RAND_MAX;
-}
-double RandRange(double a, double b) {
-	return a + (b - a) * Rand01();
-}
+double Rand01() { return rand() / (double)RAND_MAX; }
+double RandRange(double a, double b) { return a + (b - a) * Rand01(); }
 
 int main(int argc, char **argv) {
 	int t1, t2, quit, frames, rc;
@@ -212,7 +204,6 @@ int main(int argc, char **argv) {
 
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
 	SDL_RenderSetLogicalSize(renderer, SCREEN_WIDTH, SCREEN_HEIGHT);
-	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 
 	screen = SDL_CreateRGBSurface(0, SCREEN_WIDTH, SCREEN_HEIGHT, 32,
 		0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
@@ -246,13 +237,6 @@ int main(int argc, char **argv) {
 
 	if(!sprStand || !sprWalk1 || !sprWalk2 || !sprJump || !sprAttackHeavy || !sprAttackLight || !sprHurt) {
 		printf("SDL_LoadBMP(player sprites) error: %s\n", SDL_GetError());
-		if (sprStand) SDL_FreeSurface(sprStand);
-		if (sprWalk1) SDL_FreeSurface(sprWalk1);
-		if (sprWalk2) SDL_FreeSurface(sprWalk2);
-		if (sprJump) SDL_FreeSurface(sprJump);
-		if (sprAttackHeavy) SDL_FreeSurface(sprAttackHeavy);
-		if (sprAttackLight) SDL_FreeSurface(sprAttackLight);
-		if (sprHurt) SDL_FreeSurface(sprHurt);
 		SDL_FreeSurface(charset);
 		SDL_FreeSurface(screen);
 		SDL_DestroyTexture(scrtex);
@@ -272,18 +256,16 @@ int main(int argc, char **argv) {
 	SDL_SetColorKey(sprAttackLight, SDL_TRUE, key);
 	SDL_SetColorKey(sprHurt, SDL_TRUE, key);
 
-	char text[256];
+	char text[512];
 	int czerwony = SDL_MapRGB(screen->format, 0xFF, 0x00, 0x00);
 	int niebieski = SDL_MapRGB(screen->format, 0x11, 0x11, 0xCC);
 
 	// ---- stage ----
 	const double STAGE_W = 2000.0;
-	const double STAGE_H = 900.0;
-
 	const int FLOOR_Y = 260;
 	const int FLOOR_H = 200;
 
-	// ---- player ----
+	// ---- player (playerX,playerY are FEET coords) ----
 	double playerX = 200.0;
 	double playerY = FLOOR_Y + FLOOR_H / 2.0;
 	double playerSpeed = 260.0;
@@ -296,10 +278,9 @@ int main(int argc, char **argv) {
 	double lightAttackDuration = 0.18;
 	double heavyAttackDuration = 0.35;
 
-	// hitboxes
+	// hitboxes (big)
 	double lightRange = 160.0;
 	double lightHeight = 120.0;
-
 	double heavyRange = 240.0;
 	double heavyHeight = 160.0;
 
@@ -325,27 +306,26 @@ int main(int argc, char **argv) {
 	int attackId = 0;
 
 	// -------- combo input system --------
-	InputBuffer inputBuf;
-	inputBuf.count = 0;
+	InputBuffer inputBuf; inputBuf.count = 0;
 
 	bool devMode = false;
 	ComboAction currentComboAction = CA_NONE;
 	double comboActionTimer = 0.0;
 
 	// dash tuning
-	double dashSpeed = 1100.0;     // pixels/sec for the dash
-	double dashDuration = 0.12;    // seconds
+	double dashSpeed = 1100.0;
+	double dashDuration = 0.12;
 	double dashVX = 0.0, dashVY = 0.0;
 
 	// buffer tuning
-	const double INPUT_WINDOW = 0.55;     // max time between inputs for combos
+	const double INPUT_WINDOW = 0.55;
 	const double DOUBLE_TAP_WINDOW = 0.28;
 
 	// score + combo
 	int score = 0;
 	int comboCount = 0;
 	double comboTimer = 0.0;
-	const double COMBO_WINDOW = 1.0; // seconds
+	const double COMBO_WINDOW = 1.0;
 
 	// player HP
 	int playerHP = 100;
@@ -355,12 +335,12 @@ int main(int argc, char **argv) {
 	double spikeCooldown = 0.0;
 	const double SPIKE_COOLDOWN_TIME = 0.6;
 
-	// objects
-	const int MAX_OBJ = 3; // ALWAYS 2 boxes + 1 spikes
+	// objects (ALWAYS 2 boxes + 1 spikes)
+	const int MAX_OBJ = 3;
 	GameObject objs[MAX_OBJ];
 	int objCount = 0;
 
-	// spawn helpers (bigger objects)
+	// spawn helpers (big)
 	auto AddBox = [&](double x, double feetY) {
 		if (objCount >= MAX_OBJ) return;
 		objs[objCount].type = 0;
@@ -386,26 +366,21 @@ int main(int argc, char **argv) {
 		objCount++;
 	};
 
-	// object placement range (anywhere within the floor lane)
 	double objMinFeetY = FLOOR_Y + 30.0;
 	double objMaxFeetY = FLOOR_Y + FLOOR_H;
-
 	double minX = 200.0;
 	double maxX = STAGE_W - 200.0;
 
-	// ALWAYS 2 BOXES + 1 SPIKES
 	auto RespawnObjects = [&]() {
 		objCount = 0;
 		AddBox(RandRange(minX, maxX), RandRange(objMinFeetY, objMaxFeetY));
 		AddBox(RandRange(minX, maxX), RandRange(objMinFeetY, objMaxFeetY));
 		AddSpikes(RandRange(minX, maxX), RandRange(objMinFeetY, objMaxFeetY));
 	};
-
 	RespawnObjects();
 
 	// camera
 	double cameraX = 0.0;
-	double cameraY = 0.0;
 	const int DEAD_LEFT = 220;
 	const int DEAD_RIGHT = 420;
 
@@ -422,22 +397,11 @@ int main(int argc, char **argv) {
 	frames = 0;
 	quit = 0;
 
-	// combo-action timer
-	if (comboActionTimer > 0.0) {
-		comboActionTimer -= delta;
-		if (comboActionTimer <= 0.0) {
-			comboActionTimer = 0.0;
-			currectComboAction = CA_NONE;
-			dashVX = dashVY = 0.0;
-		}
-	}
-
+	// Evaluate combos (pattern table)
 	auto TryStartComboAction = [&](double now) -> void {
-		// Don't start a new combo action if one is already active
 		if (comboActionTimer > 0.0) return;
 
-		// 1) XXX => triple jump
-		{
+		{ // XXX => TRIPLE JUMP
 			InputCmd p[] = { CMD_X, CMD_X, CMD_X };
 			if (BufMatch(&inputBuf, p, 3, now, INPUT_WINDOW)) {
 				currentComboAction = CA_TRIPLE_JUMP;
@@ -446,29 +410,25 @@ int main(int argc, char **argv) {
 			}
 		}
 
-		// 2) YYY => fury
-		{
+		{ // YYY => FURY
 			InputCmd p[] = { CMD_Y, CMD_Y, CMD_Y };
 			if (BufMatch(&inputBuf, p, 3, now, INPUT_WINDOW)) {
 				currentComboAction = CA_FURY;
-				comboActionTimer = 0.45;
+				comboActionTimer = 0.55; // lasts a bit
 				return;
 			}
 		}
 
-		// 3) X Y X => uppercut
-		{
+		{ // X Y X => UPPERCUT
 			InputCmd p[] = { CMD_X, CMD_Y, CMD_X };
 			if (BufMatch(&inputBuf, p, 3, now, INPUT_WINDOW)) {
 				currentComboAction = CA_UPPERCUT;
-				comboActionTimer = 0.35;
+				comboActionTimer = 0.40;
 				return;
 			}
 		}
 
-		// 4) Dash: double-tap direction (R R, L L, U U, D D)
-		{
-			// match newest first, so "R then R" is {CMD_R, CMD_R}
+		{ // dash: double tap direction
 			InputCmd pR[] = { CMD_R, CMD_R };
 			InputCmd pL[] = { CMD_L, CMD_L };
 			InputCmd pU[] = { CMD_U, CMD_U };
@@ -508,7 +468,17 @@ int main(int argc, char **argv) {
 
 		stageTime += delta;
 
-		// combo timer decay
+		// ---- FIX: combo-action timer update MUST be inside the loop ----
+		if (comboActionTimer > 0.0) {
+			comboActionTimer -= delta;
+			if (comboActionTimer <= 0.0) {
+				comboActionTimer = 0.0;
+				currentComboAction = CA_NONE;   // FIX typo
+				dashVX = dashVY = 0.0;
+			}
+		}
+
+		// combo score timer decay
 		if (comboTimer > 0.0) {
 			comboTimer -= delta;
 			if (comboTimer <= 0.0) {
@@ -563,7 +533,6 @@ int main(int argc, char **argv) {
 
 		double len = sqrt(vx*vx + vy*vy);
 		if(len > 0.0) { vx /= len; vy /= len; }
-
 		bool moving = (len > 0.0);
 
 		// movement reduced while attacking
@@ -572,7 +541,7 @@ int main(int argc, char **argv) {
 		if (action == ACT_HEAVY) speedScale = heavyMoveScale;
 		if (inHurt) speedScale = 0.0;
 
-		// If dashing: ignore normal movement and apply dash velocity
+		// dash overrides movement
 		if (currentComboAction == CA_DASH && comboActionTimer > 0.0) {
 			playerX += dashVX * dashSpeed * delta;
 			playerY += dashVY * dashSpeed * delta;
@@ -637,13 +606,12 @@ int main(int argc, char **argv) {
 			attackBox.w = range;
 			attackBox.h = height;
 
-			// bigger forward offset so it overlaps boxes more easily
 			double frontOffset = 60.0;
 			attackBox.x = playerX + frontOffset;
 			attackBox.y = playerY - height;
 		}
 
-		// ---- PLAYER FEET HITBOX (BIGGER so spikes definitely work) ----
+		// ---- PLAYER FEET HITBOX ----
 		double playerFootW = 80.0;
 		double playerFootH = 40.0;
 		double pBoxX = playerX - playerFootW / 2.0;
@@ -666,11 +634,17 @@ int main(int argc, char **argv) {
 					if (RectOverlap(attackBox.x, attackBox.y, attackBox.w, attackBox.h,
 					                oLeft, oTop, oW, oH)) {
 
-						// FIX: damage only ONCE per attack press per object
 						if (objs[i].lastHitAttackId != attackId) {
 							objs[i].lastHitAttackId = attackId;
 
-							objs[i].boxHP -= (action == ACT_LIGHT) ? 1 : 2;
+							// base damage
+							int dmg = (action == ACT_LIGHT) ? 1 : 2;
+
+							// combo-action bonuses
+							if (currentComboAction == CA_FURY) dmg += 1;
+							if (currentComboAction == CA_UPPERCUT) dmg += 2;
+
+							objs[i].boxHP -= dmg;
 
 							int base = (action == ACT_LIGHT) ? 10 : 15;
 							int multiplier = 1 + comboCount;
@@ -715,8 +689,7 @@ int main(int argc, char **argv) {
 		SDL_FillRect(screen, NULL, sky);
 
 		// floor
-		int floorScreenY = FLOOR_Y - (int)cameraY;
-		DrawRectangle(screen, 0, floorScreenY, SCREEN_WIDTH, FLOOR_H, floorEdge, floorCol);
+		DrawRectangle(screen, 0, FLOOR_Y, SCREEN_WIDTH, FLOOR_H, floorEdge, floorCol);
 
 		// objects
 		int boxOut = SDL_MapRGB(screen->format, 200, 200, 200);
@@ -728,7 +701,7 @@ int main(int argc, char **argv) {
 			if (!objs[i].alive) continue;
 
 			int sx = (int)(objs[i].x - cameraX);
-			int syFeet = (int)(objs[i].y - cameraY);
+			int syFeet = (int)(objs[i].y);
 			int w = (int)objs[i].hitbox_w;
 			int h = (int)objs[i].hitbox_h;
 
@@ -739,10 +712,10 @@ int main(int argc, char **argv) {
 			else DrawRectangle(screen, left, top, w, h, spikeOut, spikeIn);
 		}
 
-		// player
+		// player (playerY is FEET, so centerY = feet - h/2)
 		int px = (int)(playerX - cameraX);
-		int py = (int)(playerY - cameraY - z) - currentSprite->h / 2;
-		DrawSurface(screen, currentSprite, px, py);
+		int pyCenter = (int)(playerY - z) - currentSprite->h / 2;
+		DrawSurface(screen, currentSprite, px, pyCenter);
 
 		// FPS calc
 		fpsTimer += delta;
@@ -755,32 +728,43 @@ int main(int argc, char **argv) {
 		// UI panel
 		DrawRectangle(screen, 4, 4, SCREEN_WIDTH - 8, 52, czerwony, niebieski);
 
-		sprintf(text, "time = %.1lf s | fps = %.0lf | score=%d | combo=%d", stageTime, fps, score, comboCount);
+		sprintf(text, "time=%.1lf | fps=%.0lf | score=%d | combo=%d", stageTime, fps, score, comboCount);
 		DrawString(screen, 10, 10, text, charset);
 
-		sprintf(text, "Esc quit | N new | X jump | Z light atk | Y heavy atk");
+		sprintf(text, "Esc quit | N new | X jump | Z light | Y heavy | F1 dev");
 		DrawString(screen, 10, 26, text, charset);
 
 		// HP bar
-		int barX = 10;
-		int barY = 42;
-		int barW = 180;
-		int barH = 10;
-
+		int barX = 10, barY = 42, barW = 180, barH = 10;
 		int hpOut = SDL_MapRGB(screen->format, 220, 220, 220);
 		int hpBack = SDL_MapRGB(screen->format, 40, 40, 40);
 		int hpFill = SDL_MapRGB(screen->format, 40, 220, 40);
 
 		DrawRectangle(screen, barX, barY, barW, barH, hpOut, hpBack);
-
 		int fillW = (int)((barW - 2) * (playerHP / (double)playerHPMax));
 		if (fillW < 0) fillW = 0;
 		DrawRectangle(screen, barX + 1, barY + 1, fillW, barH - 2, hpFill, hpFill);
 
 		DrawString(screen, barX + barW + 8, barY - 1, "Player Health", charset);
-
 		sprintf(text, "%d/%d", playerHP, playerHPMax);
 		DrawString(screen, barX + barW - 48, barY - 1, text, charset);
+
+		// DEV MODE: show buffer + current combo action
+		if (devMode) {
+			int y0 = 64;
+			sprintf(text, "DEV: action=%s (%.2fs)", ActionName(currentComboAction), comboActionTimer);
+			DrawString(screen, 10, y0, text, charset);
+
+			char bufLine[512];
+			strcpy(bufLine, "BUF: ");
+			for (int i = 0; i < inputBuf.count; i++) {
+				char part[32];
+				double age = stageTime - inputBuf.e[i].t;
+				sprintf(part, "%s(%.2f) ", CmdName(inputBuf.e[i].cmd), age);
+				strcat(bufLine, part);
+			}
+			DrawString(screen, 10, y0 + 12, bufLine, charset);
+		}
 
 		SDL_UpdateTexture(scrtex, NULL, screen->pixels, screen->pitch);
 		SDL_RenderCopy(renderer, scrtex, NULL, NULL);
@@ -792,9 +776,14 @@ int main(int argc, char **argv) {
 				case SDL_KEYDOWN:
 					if(event.key.keysym.sym == SDLK_ESCAPE) quit = 1;
 
+					// dev mode
+					if(event.key.keysym.sym == SDLK_F1 && event.key.repeat == 0) {
+						devMode = !devMode;
+					}
+
 					// new game
 					else if(event.key.keysym.sym == SDLK_n) {
-						NewGame(stageTime, cameraX, cameraY, playerX, playerY);
+						NewGame(stageTime, cameraX, (double&)cameraX /*unused*/, playerX, playerY);
 
 						playerHP = playerHPMax;
 						score = 0;
@@ -807,39 +796,61 @@ int main(int argc, char **argv) {
 						inHurt = false; hurtTimer = 0.0;
 						spikeCooldown = 0.0;
 
+						currentComboAction = CA_NONE;
+						comboActionTimer = 0.0;
+						dashVX = dashVY = 0.0;
+
+						inputBuf.count = 0;
+
 						RespawnObjects();
 					}
 
-					// actions (only once per key press)
+					// one-tap inputs for buffer (dash detection)
 					else if(event.key.repeat == 0) {
+						SDL_Keycode k = event.key.keysym.sym;
 
-						// jump
-						if(event.key.keysym.sym == SDLK_x) {
+						// movement taps -> buffer
+						if (k == SDLK_a || k == SDLK_LEFT)  { BufPush(&inputBuf, CMD_L, stageTime); TryStartComboAction(stageTime); }
+						if (k == SDLK_d || k == SDLK_RIGHT) { BufPush(&inputBuf, CMD_R, stageTime); TryStartComboAction(stageTime); }
+						if (k == SDLK_w || k == SDLK_UP)    { BufPush(&inputBuf, CMD_U, stageTime); TryStartComboAction(stageTime); }
+						if (k == SDLK_s || k == SDLK_DOWN)  { BufPush(&inputBuf, CMD_D, stageTime); TryStartComboAction(stageTime); }
+
+						// X: jump + buffer + triple jump effect
+						if(k == SDLK_x) {
+							BufPush(&inputBuf, CMD_X, stageTime);
+							TryStartComboAction(stageTime);
+
+							double usedJumpVel = jumpVel;
+							if (currentComboAction == CA_TRIPLE_JUMP) usedJumpVel = jumpVel * 1.35;
+
 							if(!inJump) {
 								inJump = true;
-								vz = jumpVel;
+								vz = usedJumpVel;
 							}
 						}
 
-						// light attack
-						else if(event.key.keysym.sym == SDLK_z) {
+						// Z: light attack + buffer
+						else if(k == SDLK_z) {
+							BufPush(&inputBuf, CMD_Z, stageTime);
+							TryStartComboAction(stageTime);
+
 							if(action == ACT_NONE) {
 								action = ACT_LIGHT;
 								actionTimer = lightAttackDuration;
-								attackId++; // NEW unique attack
+								attackId++;
 							}
 						}
 
-						// heavy attack
-						else if(event.key.keysym.sym == SDLK_y) {
+						// Y: heavy attack + buffer (+ uppercut can be treated as buffed heavy)
+						else if(k == SDLK_y) {
+							BufPush(&inputBuf, CMD_Y, stageTime);
+							TryStartComboAction(stageTime);
+
 							if(action == ACT_NONE) {
 								action = ACT_HEAVY;
 								actionTimer = heavyAttackDuration;
-								attackId++; // NEW unique attack
+								attackId++;
 							}
-						}
-						else if (event.key.keysym.sym == SDLK_F1 && event.key.repeat == 0) {
-							devMode = !devMode;
 						}
 					}
 					break;
@@ -860,14 +871,12 @@ int main(int argc, char **argv) {
 	SDL_FreeSurface(sprAttackHeavy);
 	SDL_FreeSurface(sprAttackLight);
 	SDL_FreeSurface(sprHurt);
-
 	SDL_FreeSurface(charset);
 	SDL_FreeSurface(screen);
 
 	SDL_DestroyTexture(scrtex);
 	SDL_DestroyRenderer(renderer);
 	SDL_DestroyWindow(window);
-
 	SDL_Quit();
 	return 0;
 }
