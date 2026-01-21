@@ -11,3 +11,5 @@ To Do:
 1. upload missing projects / files / previews
 2. add gradings and evaluation descriptors
 3. practice DTD, if given time
+
+https://docs.google.com/document/d/1Iyot7gqGJ9IMprup_Kk6EOzML3HGNPipzoUaasxZlvo/edit?usp=drivesdk
