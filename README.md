@@ -13,3 +13,5 @@ To Do:
 1. upload missing projects / files / previews
 2. add gradings and evaluation descriptors
 3. practice DTD, if given time
+
+https://www.canva.com/design/DAG_WVHcC7Y/ruPSCoSEBgpFBWI4nR01dA/edit?utm_content=DAG_WVHcC7Y&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton
