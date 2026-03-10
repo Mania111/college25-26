@@ -1,0 +1,18 @@
+''' 10.03.2026 Data Science '''
+''' notes: - watch the video at home
+           - prepare the github copilot account (...)
+           - mainly using vs studio this semester
+           - python chapters, jupiter notebook
+           - github pages - preparing a website - in DS 2026 - ebook
+           - learn SQL on your own this semester
+           - we will not write our own functions - only use premade ones
+           - install data wrangler plugin on vscode
+           
+************ TODAYS TOPIC : PYTHON BASICS ************
+https://kflisikowsky.github.io/Data_Analysis_Workshops/intro-1/ <-- READ
+1. console / terminal -> "pip install pandas"
+2. select kernel
+3. how to import mandas as pd into vscode. experiment with this
+4. Markdown & pandas - read on how to work with
+'''
+
