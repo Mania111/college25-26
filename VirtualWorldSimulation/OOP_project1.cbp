@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="OOP_project1" />
+		<Option pch_mode="2" />
+		<Option compiler="gcc" />
+		<Build>
+			<Target title="Debug">
+				<Option output="bin/Debug/OOP_project1" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Debug/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Compiler>
+					<Add option="-g" />
+				</Compiler>
+			</Target>
+			<Target title="Release">
+				<Option output="bin/Release/OOP_project1" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Release/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Compiler>
+					<Add option="-O2" />
+				</Compiler>
+				<Linker>
+					<Add option="-s" />
+				</Linker>
+			</Target>
+		</Build>
+		<Compiler>
+			<Add option="-Wall" />
+			<Add option="-fexceptions" />
+			<Add directory="C:/Users/marta/OneDrive/Documents/programming/OOP_project1/" />
+			<Add directory="C:/Users/marta/OneDrive/Documents/programming/OOP_project1/headers" />
+			<Add directory="C:/Users/marta/OneDrive/Documents/programming/OOP_project1/headers/animals" />
+			<Add directory="C:/Users/marta/OneDrive/Documents/programming/OOP_project1/headers/plants" />
+			<Add directory="C:/Users/marta/OneDrive/Documents/programming/OOP_project1/animals" />
+			<Add directory="C:/Users/marta/OneDrive/Documents/programming/OOP_project1/plants" />
+		</Compiler>
+		<Unit filename="Animal.cpp" />
+		<Unit filename="Graphics.cpp" />
+		<Unit filename="Human.cpp" />
+		<Unit filename="Organism.cpp" />
+		<Unit filename="Plant.cpp" />
+		<Unit filename="World.cpp" />
+		<Unit filename="animals/Antelope.cpp" />
+		<Unit filename="animals/Fox.cpp" />
+		<Unit filename="animals/Sheep.cpp" />
+		<Unit filename="animals/Turtle.cpp" />
+		<Unit filename="animals/Wolf.cpp" />
+		<Unit filename="headers/Animal.hpp" />
+		<Unit filename="headers/Graphics.hpp" />
+		<Unit filename="headers/Human.hpp" />
+		<Unit filename="headers/Organism.hpp" />
+		<Unit filename="headers/Plant.hpp" />
+		<Unit filename="headers/Position.hpp" />
+		<Unit filename="headers/World.hpp" />
+		<Unit filename="headers/animals/Antelope.hpp" />
+		<Unit filename="headers/animals/Fox.hpp" />
+		<Unit filename="headers/animals/Sheep.hpp" />
+		<Unit filename="headers/animals/Turtle.hpp" />
+		<Unit filename="headers/animals/Wolf.hpp" />
+		<Unit filename="headers/plants/Belladonna.hpp" />
+		<Unit filename="headers/plants/Grass.hpp" />
+		<Unit filename="headers/plants/Guarana.hpp" />
+		<Unit filename="headers/plants/Hogweed.hpp" />
+		<Unit filename="headers/plants/SowThistle.hpp" />
+		<Unit filename="main.cpp" />
+		<Unit filename="plants/Belladonna.cpp" />
+		<Unit filename="plants/Grass.cpp" />
+		<Unit filename="plants/Guarana.cpp" />
+		<Unit filename="plants/HogWeed.cpp" />
+		<Unit filename="plants/SowThistle.cpp" />
+		<Extensions>
+			<lib_finder disable_auto="1" />
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>
