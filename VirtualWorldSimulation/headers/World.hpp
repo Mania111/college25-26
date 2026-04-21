@@ -5,6 +5,19 @@
 #include <string>
 #include "Position.hpp"
 
+/* ============ World Class ============
+
+This class manages the entire simulation.
+
+- runs turns (makeTurn())
+- draws the world (drawWorld())
+- stores all organisms
+- stores Human input
+- handles collisions indirectly
+- stores messages/events
+
+======================================== */
+
 class Organism;
 class Human;
 
