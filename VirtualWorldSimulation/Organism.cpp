@@ -2,6 +2,8 @@
 
 // ============================================= Organism Class =============================================
 
+// base class for all organisms
+
 Organism::Organism(int strength, int initiative, int x, int y, World* world)
     : strength(strength), initiative(initiative), age(0), alive(true), pos{x, y}, world(world) {}
 
