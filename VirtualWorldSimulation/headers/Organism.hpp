@@ -4,6 +4,14 @@
 #include <string>
 #include "Position.hpp"
 
+// ============================================= Organism Class =============================================
+
+// base class for all entities - abstract class
+// fields: strength, initiative, position, age, pointer to world
+// action(), collision(), draw()
+
+// ==========================================================================================================
+
 class World;
 
 class Organism {
