@@ -3,7 +3,21 @@
 
 This file is responsible for compiling all pieces of code into one file that runs the whole code.
 
-*/
+Turn order:
+0. Turn begins when player makes a move / action
+1. sort organisms by initiative and age (both descending)
+2. each organism performs action()
+3. collisions
+4. remove dead organisms
+5. increase age
+6. turn =+1
+
+Saving files:
+- stored as .txt file
+- includes world size, turn number, human and organism info [ability state, type, position, age and strength]
+Loading: reads this file, recreates all organisms and human, continues the simulation.
+
+========================================================================================= */
 
 using namespace std;
 #include <iostream>
@@ -51,6 +65,7 @@ vector<string> listSaveFiles(const string& folder) {
 
 int main() {
     std::srand(static_cast<unsigned>(std::time(nullptr)));
+    // initialize random number generator with a different starting value each time program runs
 
     World world(10, 10); // --------------------------------------------------------- board size
 
