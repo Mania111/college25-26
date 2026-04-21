@@ -2,8 +2,16 @@
 /* ============ VirtualWorldSimulator - World.cpp ============
 
 This file is responsible for managing adding all organism files to the program code.
+It manages the entire simulation.
 
-*/
+- runs turns (makeTurn())
+- draws the world (drawWorld())
+- stores all organisms
+- stores Human input
+- handles collisions indirectly
+- stores messages/events
+
+============================================================== */
 
 #include <fstream>
 #include <filesystem>
