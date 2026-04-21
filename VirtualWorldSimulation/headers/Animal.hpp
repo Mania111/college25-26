@@ -3,6 +3,13 @@
 
 #include "Organism.hpp"
 
+// ============================================= Animal Class =============================================
+
+// specialization class for all animals
+// random movement, breeding logic
+
+// =======================================================================================================
+
 class Animal : public Organism {
 public:
     Animal(int strength, int initiative, int x, int y, World* world);
