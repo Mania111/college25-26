@@ -3,6 +3,13 @@
 
 #include "Organism.hpp"
 
+// ============================================= Plant Class =============================================
+
+// specialization class for all plants
+// spreading, fixed initiative
+
+// =======================================================================================================
+
 class Plant : public Organism {
 public:
     Plant(int strength, int x, int y, World* world);
